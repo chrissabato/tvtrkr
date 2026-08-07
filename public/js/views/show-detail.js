@@ -136,10 +136,43 @@ export async function renderShowDetail(view, id) {
     markBtn.hidden = watchedAiredCount === airedEpisodes.length;
   }
 
+  // The season currently being watched: the first season (in order) that
+  // has aired episodes still unwatched. A season with nothing aired yet is
+  // skipped (nothing to catch up on there yet). If every aired episode
+  // everywhere has been watched, falls through to the newest season —
+  // for a brand new show this is season 1, since nothing is watched yet.
+  function currentSeasonNumber() {
+    const regularSeasons = seasons.filter((s) => s.season_number !== 0);
+    for (const season of regularSeasons) {
+      const episodes = seasonEpisodesCache.get(season.season_number) || [];
+      const airedEpisodes = episodes.filter((ep) => hasAired(ep.air_date));
+      if (airedEpisodes.length === 0) continue;
+      const watchedAiredCount = airedEpisodes.filter((ep) =>
+        watchedSet.has(episodeKey(season.season_number, ep.episode_number))
+      ).length;
+      if (watchedAiredCount < airedEpisodes.length) {
+        return season.season_number;
+      }
+    }
+    const fallback = regularSeasons.length ? regularSeasons[regularSeasons.length - 1] : seasons[0];
+    return fallback ? fallback.season_number : null;
+  }
+
   // Warm the episode cache for every season up front so headers can show
-  // real counts without requiring the accordion to be opened.
-  Promise.all(seasons.map((s) => getSeasonEpisodes(s.season_number))).then(() => {
+  // real counts without requiring the accordion to be opened, then expand
+  // the season currently being watched.
+  Promise.all(seasons.map((s) => getSeasonEpisodes(s.season_number))).then(async () => {
     seasons.forEach(renderSeasonHeader);
+
+    const anyExpanded = [...seasonsContainer.querySelectorAll('.episode-list')].some((el) => !el.hidden);
+    if (anyExpanded) return; // respect a season the user already opened manually
+
+    const seasonNumber = currentSeasonNumber();
+    const list = seasonNumber !== null ? seasonsContainer.querySelector(`[data-episodes="${seasonNumber}"]`) : null;
+    if (list) {
+      list.hidden = false;
+      await loadEpisodes(seasonNumber, list);
+    }
   });
 
   seasonsContainer.addEventListener('click', async (e) => {
