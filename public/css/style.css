@@ -189,25 +189,12 @@ body {
 
 @media (max-width: 480px) {
   .topbar-inner {
-    flex-wrap: wrap;
     padding: 10px 12px;
     gap: 6px;
   }
 
   .brand {
     font-size: 1rem;
-  }
-
-  .user-menu {
-    order: 1;
-    margin-left: auto;
-  }
-
-  .tabs {
-    order: 2;
-    flex-basis: 100%;
-    flex-wrap: wrap;
-    overflow-x: visible;
   }
 
   .tabs a {
