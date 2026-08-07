@@ -1,0 +1,399 @@
+:root {
+  color-scheme: dark;
+  --bg: #0b0f19;
+  --surface: #141a29;
+  --surface-2: #1c2438;
+  --text: #e6e9f0;
+  --text-dim: #8b93a7;
+  --accent: #22d3ee;
+  --accent-dim: #0e7490;
+  --danger: #f87171;
+  --radius: 10px;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--surface-2);
+}
+
+.user-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+.user-chip img {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.user-chip .btn {
+  margin-top: 0;
+  padding: 4px 10px;
+  font-size: 0.75rem;
+}
+
+.login-screen {
+  max-width: 320px;
+  margin: 15vh auto 0;
+  text-align: center;
+}
+
+.login-screen h2 {
+  margin-bottom: 4px;
+}
+
+.google-btn {
+  margin-top: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: #fff;
+  color: #1f1f1f;
+  border-color: #fff;
+  width: 100%;
+}
+
+.brand {
+  font-size: 1.1rem;
+  margin: 0;
+  letter-spacing: 0.02em;
+  color: var(--accent);
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+}
+
+.tabs a {
+  color: var(--text-dim);
+  text-decoration: none;
+  font-size: 0.85rem;
+  padding: 8px 12px;
+  border-radius: var(--radius);
+}
+
+.tabs a.active {
+  color: var(--text);
+  background: var(--surface-2);
+}
+
+.view {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+.loading,
+.empty,
+.error {
+  color: var(--text-dim);
+  text-align: center;
+  padding: 32px 16px;
+}
+
+.error {
+  color: var(--danger);
+}
+
+.search-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.search-row input {
+  flex: 1;
+  background: var(--surface);
+  border: 1px solid var(--surface-2);
+  color: var(--text);
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  font-size: 1rem;
+}
+
+.search-row button {
+  background: var(--accent);
+  color: #05262b;
+  border: none;
+  padding: 10px 16px;
+  border-radius: var(--radius);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+h2.section-title {
+  font-size: 0.95rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+  margin: 24px 0 12px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 14px;
+}
+
+.card {
+  background: var(--surface);
+  border-radius: var(--radius);
+  overflow: hidden;
+  cursor: pointer;
+  text-align: left;
+  border: none;
+  color: var(--text);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.card img {
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  background: var(--surface-2);
+  display: block;
+}
+
+.card .card-body {
+  padding: 8px 10px;
+}
+
+.card .card-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.card .card-sub {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
+.detail-header {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.detail-header img {
+  width: 130px;
+  border-radius: var(--radius);
+  flex-shrink: 0;
+}
+
+.detail-meta h2 {
+  margin: 0 0 6px;
+}
+
+.detail-meta .overview {
+  color: var(--text-dim);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.btn {
+  display: inline-block;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  background: transparent;
+  padding: 8px 14px;
+  border-radius: var(--radius);
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 0.85rem;
+  margin-top: 10px;
+}
+
+.btn.active {
+  background: var(--accent);
+  color: #05262b;
+}
+
+.btn.danger {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.season-block {
+  margin-bottom: 20px;
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 12px;
+}
+
+.season-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+}
+
+.season-header h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.episode-list {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.episode-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+
+.episode-row.watched {
+  opacity: 0.55;
+}
+
+.episode-row.unaired {
+  opacity: 0.5;
+}
+
+.episode-row.unaired .ep-date {
+  color: var(--accent);
+  font-style: italic;
+}
+
+.episode-row input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+}
+
+.episode-row input[type="checkbox"]:disabled {
+  cursor: not-allowed;
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.episode-row .ep-title {
+  flex: 1;
+  font-size: 0.85rem;
+}
+
+.episode-row .ep-date {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
+.calendar-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.calendar-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 10px;
+}
+
+.calendar-row img {
+  width: 48px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: 6px;
+  background: var(--surface-2);
+}
+
+.calendar-row .date {
+  font-size: 0.75rem;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.calendar-row .show-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.calendar-row .ep-info {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+.watchlist-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 10px;
+  margin-bottom: 10px;
+}
+
+.watchlist-row img {
+  width: 48px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: 6px;
+  background: var(--surface-2);
+}
+
+.watchlist-row .info {
+  flex: 1;
+}
+
+.watchlist-row .show-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.watchlist-row .progress {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}

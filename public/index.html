@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>tvtrkr</title>
+  <meta name="theme-color" content="#0b0f19" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="icon" href="/img/icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="/img/icon.svg" />
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <h1 class="brand">tvtrkr</h1>
+    <nav class="tabs" id="tabs">
+      <a href="#/discover" data-route="discover">Discover</a>
+      <a href="#/calendar" data-route="calendar">Calendar</a>
+      <a href="#/watchlist" data-route="watchlist">My Shows</a>
+      <a href="#/users" data-route="users" id="users-tab" hidden>Users</a>
+    </nav>
+    <div class="user-chip" id="user-chip" hidden></div>
+  </header>
+
+  <main id="view" class="view">
+    <p class="loading">Loading…</p>
+  </main>
+
+  <script type="module" src="/js/app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch((err) => {
+          console.warn('Service worker registration failed', err);
+        });
+      });
+    }
+  </script>
+</body>
+</html>
