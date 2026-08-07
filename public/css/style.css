@@ -456,6 +456,7 @@ h2.section-title {
   border-radius: var(--radius);
   padding: 10px;
   margin-bottom: 10px;
+  cursor: pointer;
 }
 
 .watchlist-row img {

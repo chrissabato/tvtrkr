@@ -23,9 +23,10 @@ export async function renderWatchlist(view) {
   shows.forEach((show) => {
     const row = document.createElement('div');
     row.className = 'watchlist-row';
+    row.dataset.id = show.tmdb_id;
     row.innerHTML = `
       ${show.poster_path ? `<img src="${posterUrl(show.poster_path, 'w92')}" alt="${show.name}" />` : ''}
-      <div class="info" data-id="${show.tmdb_id}">
+      <div class="info">
         <div class="show-name">${show.name}</div>
         <div class="progress">${show.watched_count} episode${show.watched_count === 1 ? '' : 's'} watched</div>
       </div>
@@ -36,10 +37,8 @@ export async function renderWatchlist(view) {
 
   list.addEventListener('click', async (e) => {
     const removeBtn = e.target.closest('[data-remove]');
-    const info = e.target.closest('.info');
 
     if (removeBtn) {
-      e.stopPropagation();
       if (confirm('Remove this show from My Shows? Watched history will be deleted too.')) {
         await api.removeFromLibrary(removeBtn.dataset.remove);
         renderWatchlist(view);
@@ -47,8 +46,9 @@ export async function renderWatchlist(view) {
       return;
     }
 
-    if (info) {
-      window.location.hash = `#/show/${info.dataset.id}`;
+    const row = e.target.closest('.watchlist-row');
+    if (row) {
+      window.location.hash = `#/show/${row.dataset.id}`;
     }
   });
 }
