@@ -119,33 +119,40 @@ To take it down: `sudo a2dissite tvtrkr.conf && sudo systemctl reload apache2`.
 ## Production deployment (GitHub Actions)
 
 Pushes to `main` deploy automatically via `.github/workflows/deploy.yml`:
-it renders `public/api/config.local.php` from repo secrets, rsyncs the app
-to the server (excluding `data/`, which is never touched), and reloads
-Apache.
+it renders `public/api/config.local.php` from repo secrets and rsyncs the
+contents of `public/` straight into the site's docroot over SSH. No sudo,
+no Apache reload — Apache/PHP/TLS on the production host are already set up
+outside this repo, and PHP files are interpreted fresh on every request, so
+nothing needs restarting.
 
-**One-time server setup**, since it needs real access to the box:
+`DEPLOY_PATH` is the docroot itself (e.g.
+`/home/chrissabato/www/tvtrkr.chrissabato.com/html`). The SQLite database
+lives one directory up, as a sibling of the docroot (`.../data/`) — outside
+the web-served tree, and never touched by deploys. The workflow creates
+that directory on the server if it doesn't already exist.
 
-1. On the server, run `scripts/server-bootstrap.sh` as root, passing the
-   deploy public key:
-   ```bash
-   sudo bash scripts/server-bootstrap.sh "ssh-ed25519 AAAA... tvtrkr-deploy@github-actions"
+Because the production vhost isn't managed by this repo, `public/.htaccess`
+carries the same rewrite rules that local dev gets from
+`apache/tvtrkr.conf`'s `<Directory>` block — `/api/*` to `api/index.php`,
+everything else falling back to `index.html`. This needs `AllowOverride
+All` (or at least `FileInfo`) in the vhost, which panel-managed per-user
+sites almost always have.
+
+**One-time setup**, since it needs real access to the box:
+
+1. Add the deploy public key to `~/.ssh/authorized_keys` for the SSH user
+   the workflow connects as (see the `SSH_USER` secret):
    ```
-   This installs PHP + Apache + the `pdo_sqlite`/`curl` extensions, creates
-   a low-privilege `deploy` user (SSH key auth only, and sudo scoped to
-   *just* `systemctl reload apache2`), and lays out `/var/www/tvtrkr` with
-   the right permissions for the SQLite file.
+   ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIH6L8Nze6ZaNi1qof2E2OoAryrB3AEbrucE0KZmrBLki tvtrkr-deploy@github-actions
+   ```
 
-2. Point your existing HTTPS vhost's `DocumentRoot` at
-   `/var/www/tvtrkr/public` and add the `<Directory>` rewrite block the
-   script prints at the end (same rules as the local Apache config, just at
-   a different path). This step is manual on purpose — it edits your
-   existing certbot-managed vhost, which is too environment-specific to
-   script safely from here.
+2. Confirm PHP on that site has the `pdo_sqlite` and `curl` extensions
+   enabled (`php -m | grep -E 'sqlite|curl'`).
 
 3. Set these as GitHub Actions repo secrets (Settings → Secrets and
-   variables → Actions): `SSH_HOST`, `SSH_USER`, `SSH_PRIVATE_KEY`,
-   `DEPLOY_PATH`, `TMDB_TOKEN`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`,
-   `APP_BASE_URL`, `ADMIN_EMAIL`.
+   variables → Actions) if not already set: `SSH_HOST`, `SSH_USER`,
+   `SSH_PRIVATE_KEY`, `DEPLOY_PATH`, `TMDB_TOKEN`, `GOOGLE_CLIENT_ID`,
+   `GOOGLE_CLIENT_SECRET`, `APP_BASE_URL`, `ADMIN_EMAIL`.
 
 After that, every push to `main` deploys itself.
 
@@ -157,6 +164,7 @@ public/
   manifest.json        PWA manifest
   sw.js                 Service worker (app-shell caching, network-first API)
   router.php            Dev-server router (php -S ... router.php)
+  .htaccess              Rewrite rules for hosts where the vhost is managed elsewhere
   css/style.css
   img/icon.svg          (not /icons/ — that collides with Apache's built-in icon alias)
   js/
@@ -173,8 +181,6 @@ public/
     config.local.php      Your secrets (gitignored)
 data/
   tvtrkr.sqlite          SQLite database (created on first run, gitignored)
-scripts/
-  server-bootstrap.sh    One-time production server setup (see above)
 .github/workflows/
   deploy.yml             Push-to-deploy pipeline
 apache/

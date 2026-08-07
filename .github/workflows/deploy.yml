@@ -46,24 +46,18 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
 
-      # data/ (the SQLite database) is intentionally excluded so it's never
-      # touched by deploys.
+      # DEPLOY_PATH is the site's docroot (.../html) and receives the
+      # contents of public/ directly. data/ (the SQLite database) lives one
+      # level up, as a sibling of html/ — matching db.php's relative path —
+      # and is never touched by rsync, so it survives every deploy.
       - name: Sync app files to server
         env:
           SSH_USER: ${{ secrets.SSH_USER }}
           SSH_HOST: ${{ secrets.SSH_HOST }}
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
         run: |
+          SITE_ROOT=$(dirname "$DEPLOY_PATH")
+          ssh -i ~/.ssh/deploy_key "$SSH_USER@$SSH_HOST" "mkdir -p '$DEPLOY_PATH' '$SITE_ROOT/data'"
           rsync -az --delete \
-            --exclude='.git/' \
-            --exclude='.github/' \
-            --exclude='data/' \
             -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes" \
-            ./ "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/"
-
-      - name: Reload Apache
-        env:
-          SSH_USER: ${{ secrets.SSH_USER }}
-          SSH_HOST: ${{ secrets.SSH_HOST }}
-        run: |
-          ssh -i ~/.ssh/deploy_key "$SSH_USER@$SSH_HOST" "sudo systemctl reload apache2"
+            ./public/ "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/"

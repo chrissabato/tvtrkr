@@ -1,0 +1,13 @@
+# Used on hosts where the vhost itself isn't managed by this repo (e.g. a
+# panel-managed production server) — mirrors the <Directory> rewrite rules
+# in apache/tvtrkr.conf, which local dev uses directly instead.
+# Requires "AllowOverride All" (or at least FileInfo) in the vhost.
+
+RewriteEngine On
+
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteRule ^api/ api/index.php [L]
+
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^ index.html [L]
