@@ -324,62 +324,177 @@ route($routes, 'DELETE', '#^/shows/(\d+)/watched/season/(\d+)$#', function ($id,
     respond(['ok' => true]);
 });
 
-// -- Calendar: recently aired + upcoming episodes for tracked shows --
+// -- Calendar: infinite-scroll history + future for tracked shows --
+//
+// Episodes are crawled season-by-season from TMDB into a local `episodes`
+// cache (see sync_show_episodes()) so the calendar can page through a full
+// timeline via cheap SQLite cursor queries instead of hitting TMDB on every
+// scroll event.
+
+const CALENDAR_PAGE_SIZE = 20;
+const CALENDAR_PAGE_SIZE_MAX = 50;
 
 route($routes, 'GET', '#^/calendar$#', function () {
     $user = require_login();
     $pdo = db();
-    $stmt = $pdo->prepare('SELECT tmdb_id, name, poster_path FROM shows WHERE user_id = ?');
-    $stmt->execute([$user['id']]);
-    $shows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    $watchedStmt = $pdo->prepare('SELECT show_id, season_number, episode_number FROM watched_episodes WHERE user_id = ?');
-    $watchedStmt->execute([$user['id']]);
-    $watched = [];
-    foreach ($watchedStmt->fetchAll(PDO::FETCH_ASSOC) as $w) {
-        $watched[$w['show_id'] . ':' . $w['season_number'] . '-' . $w['episode_number']] = true;
-    }
+    sync_tracked_show_episodes($pdo, $user['id']);
 
-    $today = date('Y-m-d');
-    $recentCutoff = date('Y-m-d', strtotime('-14 days'));
+    // A synthetic boundary cursor: everything with air_date <= today sorts
+    // "before" it, everything with air_date > today sorts "after" it, and
+    // since real show/season/episode ids can never reach PHP_INT_MAX this
+    // never accidentally swallows or duplicates today's own episodes.
+    $boundary = [date('Y-m-d'), PHP_INT_MAX, PHP_INT_MAX, PHP_INT_MAX];
 
-    $episodes = [];
-    foreach ($shows as $show) {
-        try {
-            $details = tmdb_get('/tv/' . $show['tmdb_id']);
-        } catch (RuntimeException $e) {
-            continue; // skip shows TMDB can't currently resolve
-        }
-
-        foreach (['last_episode_to_air', 'next_episode_to_air'] as $key) {
-            $ep = $details[$key] ?? null;
-            if (!$ep || empty($ep['air_date'])) {
-                continue;
-            }
-            // Only surface recently-aired episodes within the cutoff window,
-            // not a show's entire watch history.
-            if ($key === 'last_episode_to_air' && $ep['air_date'] < $recentCutoff) {
-                continue;
-            }
-
-            $episodes[] = [
-                'show_id' => $show['tmdb_id'],
-                'show_name' => $show['name'],
-                'poster_path' => $show['poster_path'],
-                'air_date' => $ep['air_date'],
-                'season_number' => $ep['season_number'],
-                'episode_number' => $ep['episode_number'],
-                'episode_name' => $ep['name'],
-                'aired' => $ep['air_date'] <= $today,
-                'watched' => isset($watched[$show['tmdb_id'] . ':' . $ep['season_number'] . '-' . $ep['episode_number']]),
-            ];
-        }
-    }
-
-    usort($episodes, fn($a, $b) => strcmp($a['air_date'], $b['air_date']));
-
-    respond($episodes);
+    respond([
+        'recent' => fetch_calendar_page($pdo, $user['id'], 'before', $boundary, CALENDAR_PAGE_SIZE),
+        'upcoming' => fetch_calendar_page($pdo, $user['id'], 'after', $boundary, CALENDAR_PAGE_SIZE),
+    ]);
 });
+
+route($routes, 'GET', '#^/calendar/more$#', function () {
+    $user = require_login();
+    $pdo = db();
+
+    $dir = $_GET['dir'] ?? '';
+    if (!in_array($dir, ['before', 'after'], true)) {
+        respond_error('dir must be "before" or "after"');
+    }
+
+    $airDate = $_GET['air_date'] ?? '';
+    if ($airDate === '') {
+        respond_error('air_date cursor is required');
+    }
+
+    $cursor = [$airDate, (int) ($_GET['show_id'] ?? 0), (int) ($_GET['season'] ?? 0), (int) ($_GET['episode'] ?? 0)];
+    $limit = min(CALENDAR_PAGE_SIZE_MAX, max(1, (int) ($_GET['limit'] ?? CALENDAR_PAGE_SIZE)));
+
+    respond(['episodes' => fetch_calendar_page($pdo, $user['id'], $dir, $cursor, $limit)]);
+});
+
+// Crawls every tracked show's full season list into the local `episodes`
+// cache, skipping shows synced within the TTL and seasons that are already
+// fully cached (a finished season's episode list never changes).
+function sync_tracked_show_episodes(PDO $pdo, int $userId): void
+{
+    $stmt = $pdo->prepare('SELECT tmdb_id FROM shows WHERE user_id = ?');
+    $stmt->execute([$userId]);
+    foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $showId) {
+        sync_show_episodes($pdo, (int) $showId);
+    }
+}
+
+function sync_show_episodes(PDO $pdo, int $showId): void
+{
+    $syncTtlSeconds = 6 * 3600;
+
+    $stmt = $pdo->prepare('SELECT synced_at FROM show_episode_sync WHERE show_id = ?');
+    $stmt->execute([$showId]);
+    $lastSync = $stmt->fetchColumn();
+    if ($lastSync !== false && (time() - strtotime($lastSync . ' UTC')) < $syncTtlSeconds) {
+        return;
+    }
+
+    try {
+        $details = tmdb_get('/tv/' . $showId);
+    } catch (RuntimeException $e) {
+        return; // TMDB unreachable or show gone; leave whatever's cached in place
+    }
+
+    $countStmt = $pdo->prepare('SELECT COUNT(*) FROM episodes WHERE show_id = ? AND season_number = ?');
+    $upsert = $pdo->prepare('
+        INSERT INTO episodes (show_id, season_number, episode_number, name, air_date)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(show_id, season_number, episode_number) DO UPDATE SET
+            name = excluded.name, air_date = excluded.air_date
+    ');
+
+    foreach ($details['seasons'] ?? [] as $season) {
+        $seasonNumber = (int) $season['season_number'];
+        $episodeCount = (int) ($season['episode_count'] ?? 0);
+        if ($seasonNumber === 0 && $episodeCount === 0) {
+            continue; // no specials
+        }
+
+        // Already have every episode TMDB currently knows about for this
+        // season (true for any season that's fully aired) — skip refetching.
+        $countStmt->execute([$showId, $seasonNumber]);
+        if ($episodeCount > 0 && (int) $countStmt->fetchColumn() >= $episodeCount) {
+            continue;
+        }
+
+        try {
+            $seasonData = tmdb_get("/tv/$showId/season/$seasonNumber");
+        } catch (RuntimeException $e) {
+            continue;
+        }
+
+        foreach ($seasonData['episodes'] ?? [] as $ep) {
+            if (empty($ep['air_date'])) {
+                continue;
+            }
+            $upsert->execute([$showId, $seasonNumber, $ep['episode_number'], $ep['name'], $ep['air_date']]);
+        }
+    }
+
+    $pdo->prepare('
+        INSERT INTO show_episode_sync (show_id, synced_at) VALUES (?, datetime("now"))
+        ON CONFLICT(show_id) DO UPDATE SET synced_at = excluded.synced_at
+    ')->execute([$showId]);
+}
+
+// Cursor-paginates the merged timeline of the user's tracked shows' episodes.
+// $cursor is [air_date, show_id, season_number, episode_number]; results are
+// always returned in ascending (oldest-to-newest) order, ready to prepend
+// ('before' pages, which are queried DESC then flipped) or append ('after').
+function fetch_calendar_page(PDO $pdo, int $userId, string $direction, array $cursor, int $limit): array
+{
+    [$cAirDate, $cShowId, $cSeason, $cEpisode] = $cursor;
+    $before = $direction === 'before';
+    $cmp = $before ? '<' : '>';
+    $order = $before ? 'DESC' : 'ASC';
+
+    $stmt = $pdo->prepare("
+        SELECT
+            e.show_id, e.season_number, e.episode_number, e.name AS episode_name, e.air_date,
+            s.name AS show_name, s.poster_path,
+            CASE WHEN e.air_date <= :today THEN 1 ELSE 0 END AS aired,
+            CASE WHEN w.show_id IS NOT NULL THEN 1 ELSE 0 END AS watched
+        FROM episodes e
+        JOIN shows s ON s.tmdb_id = e.show_id AND s.user_id = :user_id
+        LEFT JOIN watched_episodes w
+            ON w.user_id = :user_id AND w.show_id = e.show_id
+            AND w.season_number = e.season_number AND w.episode_number = e.episode_number
+        WHERE (e.air_date, e.show_id, e.season_number, e.episode_number) $cmp (:c_air_date, :c_show_id, :c_season, :c_episode)
+        ORDER BY e.air_date $order, e.show_id $order, e.season_number $order, e.episode_number $order
+        LIMIT :limit
+    ");
+    $stmt->bindValue(':today', date('Y-m-d'));
+    $stmt->bindValue(':user_id', $userId, PDO::PARAM_INT);
+    $stmt->bindValue(':c_air_date', $cAirDate);
+    $stmt->bindValue(':c_show_id', $cShowId, PDO::PARAM_INT);
+    $stmt->bindValue(':c_season', $cSeason, PDO::PARAM_INT);
+    $stmt->bindValue(':c_episode', $cEpisode, PDO::PARAM_INT);
+    $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+    $stmt->execute();
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    if ($before) {
+        $rows = array_reverse($rows);
+    }
+
+    return array_map(fn($row) => [
+        'show_id' => (int) $row['show_id'],
+        'show_name' => $row['show_name'],
+        'poster_path' => $row['poster_path'],
+        'air_date' => $row['air_date'],
+        'season_number' => (int) $row['season_number'],
+        'episode_number' => (int) $row['episode_number'],
+        'episode_name' => $row['episode_name'],
+        'aired' => (bool) $row['aired'],
+        'watched' => (bool) $row['watched'],
+    ], $rows);
+}
 
 function ensure_show_exists(int $userId, $tmdbId): void
 {

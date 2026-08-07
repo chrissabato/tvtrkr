@@ -333,6 +333,10 @@ h2.section-title {
   gap: 10px;
 }
 
+.calendar-sentinel {
+  height: 1px;
+}
+
 .calendar-today-marker {
   display: flex;
   align-items: center;

@@ -63,6 +63,10 @@ export const api = {
 
   // Calendar
   getCalendar: () => request('/calendar'),
+  getCalendarPage: (dir, cursor, limit = 20) =>
+    request(
+      `/calendar/more?dir=${dir}&air_date=${encodeURIComponent(cursor.air_date)}&show_id=${cursor.show_id}&season=${cursor.season_number}&episode=${cursor.episode_number}&limit=${limit}`
+    ),
 };
 
 export const TMDB_IMG = 'https://image.tmdb.org/t/p';

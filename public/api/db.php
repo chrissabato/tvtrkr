@@ -69,6 +69,29 @@ function db(): PDO
         )
     ');
 
+    $pdo->exec('
+        CREATE TABLE IF NOT EXISTS episodes (
+            show_id INTEGER NOT NULL,
+            season_number INTEGER NOT NULL,
+            episode_number INTEGER NOT NULL,
+            name TEXT,
+            air_date TEXT NOT NULL,
+            PRIMARY KEY (show_id, season_number, episode_number)
+        )
+    ');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_episodes_air_date ON episodes (air_date)');
+
+    // Tracks when a show's full episode list was last pulled from TMDB
+    // (one season-by-season crawl per show), so the calendar's infinite
+    // scroll can page through the local cache instead of hitting TMDB
+    // on every scroll event.
+    $pdo->exec('
+        CREATE TABLE IF NOT EXISTS show_episode_sync (
+            show_id INTEGER PRIMARY KEY,
+            synced_at TEXT NOT NULL
+        )
+    ');
+
     seed_admin_allowlist($pdo);
 
     return $pdo;

@@ -13,7 +13,9 @@ people.
 - **My Shows (watchlist)** — add/remove shows you're tracking.
 - **Watched tracking** — check off individual episodes or mark a whole season
   watched at once. Can't check off episodes that haven't aired yet.
-- **Calendar** — upcoming air dates for the shows in your watchlist.
+- **Calendar** — an infinite-scroll timeline of every episode (aired and
+  upcoming) for the shows in your watchlist, opening scrolled to today, with
+  a touch-friendly checkbox to mark episodes watched right from the list.
 - **Google sign-in** with an allowlist — only invited emails can log in; the
   admin manages the list from a Users screen in the app.
 - Installable as a PWA (works offline for previously-viewed pages; live data
