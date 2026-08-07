@@ -9,6 +9,11 @@ define('GOOGLE_AUTH_URL', 'https://accounts.google.com/o/oauth2/v2/auth');
 define('GOOGLE_TOKEN_URL', 'https://oauth2.googleapis.com/token');
 define('GOOGLE_USERINFO_URL', 'https://www.googleapis.com/oauth2/v3/userinfo');
 
+// PWAs get relaunched as "new sessions" by the OS far more often than a
+// browser tab does, so a session-only cookie (and PHP's default 24-minute
+// server-side GC) logs people out constantly. Keep both long-lived instead.
+const SESSION_LIFETIME_SECONDS = 60 * 60 * 24 * 60; // 60 days
+
 function start_session(): void
 {
     if (session_status() === PHP_SESSION_ACTIVE) {
@@ -18,8 +23,9 @@ function start_session(): void
     $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
         || ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https';
 
+    ini_set('session.gc_maxlifetime', (string) SESSION_LIFETIME_SECONDS);
     session_set_cookie_params([
-        'lifetime' => 0,
+        'lifetime' => SESSION_LIFETIME_SECONDS,
         'path' => '/',
         'secure' => $isHttps,
         'httponly' => true,
@@ -27,6 +33,19 @@ function start_session(): void
     ]);
     session_name('tvtrkr_session');
     session_start();
+
+    // Refresh the cookie's expiry on every request so an active user's
+    // session keeps sliding forward instead of hard-expiring 60 days after
+    // their first login.
+    if (!empty($_COOKIE[session_name()])) {
+        setcookie(session_name(), session_id(), [
+            'expires' => time() + SESSION_LIFETIME_SECONDS,
+            'path' => '/',
+            'secure' => $isHttps,
+            'httponly' => true,
+            'samesite' => 'Lax',
+        ]);
+    }
 }
 
 function current_user(): ?array
