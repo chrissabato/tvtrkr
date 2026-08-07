@@ -60,7 +60,7 @@ export async function renderCalendar(view) {
     <div class="calendar-list" id="calendar-list">
       <div class="calendar-sentinel" data-sentinel="top"></div>
       ${recent.map(episodeRow).join('')}
-      <div class="calendar-today-marker" data-today-marker><span>Today</span></div>
+      <div class="calendar-today-marker" data-today-marker><span>Upcoming</span></div>
       ${upcoming.map(episodeRow).join('')}
       <div class="calendar-sentinel" data-sentinel="bottom"></div>
     </div>
@@ -177,9 +177,8 @@ export async function renderCalendar(view) {
     }
   });
 
-  // Land on Today, leaving room for the sticky topbar.
-  const topbar = document.querySelector('.topbar');
-  const topbarHeight = topbar ? topbar.getBoundingClientRect().height : 0;
-  const targetY = todayMarker.getBoundingClientRect().top + window.scrollY - topbarHeight - 12;
+  // Land with the divider at the bottom of the viewport, so recently aired
+  // episodes fill the screen and upcoming ones sit just below the fold.
+  const targetY = todayMarker.getBoundingClientRect().bottom + window.scrollY - window.innerHeight + 12;
   window.scrollTo({ top: Math.max(0, targetY) });
 }
