@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'tvtrkr-v9';
+const CACHE_VERSION = 'tvtrkr-v10';
 
 const APP_SHELL = [
   '/',
