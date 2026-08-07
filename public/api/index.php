@@ -244,6 +244,121 @@ route($routes, 'DELETE', '#^/shows/(\d+)$#', function ($id) {
     respond(['ok' => true]);
 });
 
+// -- What to Watch: next unwatched (already-aired) episode per show --
+//
+// A show with nothing aired-and-unwatched is only worth surfacing here if
+// it has something airing soon; otherwise it's just noise (finished shows,
+// shows on long hiatus).
+const WHATTOWATCH_SOON_DAYS = 14;
+
+route($routes, 'GET', '#^/whattowatch$#', function () {
+    $user = require_login();
+    $pdo = db();
+
+    sync_tracked_show_episodes($pdo, $user['id']);
+
+    $today = date('Y-m-d');
+
+    $availableStmt = $pdo->prepare('
+        SELECT e.show_id, e.season_number, e.episode_number, e.name AS episode_name, e.air_date
+        FROM episodes e
+        JOIN shows s ON s.tmdb_id = e.show_id AND s.user_id = :user_id
+        LEFT JOIN watched_episodes w
+            ON w.user_id = :user_id AND w.show_id = e.show_id
+            AND w.season_number = e.season_number AND w.episode_number = e.episode_number
+        WHERE e.air_date <= :today AND w.show_id IS NULL
+        ORDER BY e.show_id, e.season_number, e.episode_number
+    ');
+    $availableStmt->execute(['user_id' => $user['id'], 'today' => $today]);
+
+    // First row per show (in season/episode order) is the next one up; the
+    // total row count per show is how many aired episodes are available.
+    $nextByShow = [];
+    $availableCounts = [];
+    foreach ($availableStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $showId = (int) $row['show_id'];
+        $availableCounts[$showId] = ($availableCounts[$showId] ?? 0) + 1;
+        if (!isset($nextByShow[$showId])) {
+            $nextByShow[$showId] = $row;
+        }
+    }
+
+    $upcomingStmt = $pdo->prepare('
+        SELECT e.show_id, e.season_number, e.episode_number, e.name AS episode_name, e.air_date
+        FROM episodes e
+        JOIN shows s ON s.tmdb_id = e.show_id AND s.user_id = :user_id
+        WHERE e.air_date > :today
+        ORDER BY e.show_id, e.air_date, e.season_number, e.episode_number
+    ');
+    $upcomingStmt->execute(['user_id' => $user['id'], 'today' => $today]);
+
+    // First row per show is the soonest upcoming (not-yet-aired) episode.
+    $upcomingByShow = [];
+    foreach ($upcomingStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $showId = (int) $row['show_id'];
+        if (!isset($upcomingByShow[$showId])) {
+            $upcomingByShow[$showId] = $row;
+        }
+    }
+
+    $showStmt = $pdo->prepare('SELECT tmdb_id, name, poster_path FROM shows WHERE user_id = ?');
+    $showStmt->execute([$user['id']]);
+    $allShows = $showStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $soonCutoff = date('Y-m-d', strtotime("$today +" . WHATTOWATCH_SOON_DAYS . ' days'));
+
+    $result = [];
+    foreach ($allShows as $show) {
+        $showId = (int) $show['tmdb_id'];
+        $next = $nextByShow[$showId] ?? null;
+        $upcoming = $upcomingByShow[$showId] ?? null;
+        $availableCount = $availableCounts[$showId] ?? 0;
+
+        if ($availableCount === 0 && (!$upcoming || $upcoming['air_date'] > $soonCutoff)) {
+            continue; // caught up with nothing airing soon — not worth surfacing
+        }
+
+        $result[] = [
+            'tmdb_id' => $showId,
+            'name' => $show['name'],
+            'poster_path' => $show['poster_path'],
+            'available_count' => $availableCount,
+            'next_episode' => $next ? [
+                'season_number' => (int) $next['season_number'],
+                'episode_number' => (int) $next['episode_number'],
+                'name' => $next['episode_name'],
+                'air_date' => $next['air_date'],
+            ] : null,
+            'upcoming_episode' => $upcoming ? [
+                'season_number' => (int) $upcoming['season_number'],
+                'episode_number' => (int) $upcoming['episode_number'],
+                'name' => $upcoming['episode_name'],
+                'air_date' => $upcoming['air_date'],
+            ] : null,
+        ];
+    }
+
+    // Shows with something ready to watch first (soonest next episode first),
+    // then shows with something airing soon (soonest first), alphabetically
+    // within each group.
+    usort($result, function ($a, $b) {
+        if (($a['available_count'] > 0) !== ($b['available_count'] > 0)) {
+            return $a['available_count'] > 0 ? -1 : 1;
+        }
+        $aDate = $a['next_episode']['air_date'] ?? $a['upcoming_episode']['air_date'] ?? null;
+        $bDate = $b['next_episode']['air_date'] ?? $b['upcoming_episode']['air_date'] ?? null;
+        if ($aDate !== $bDate) {
+            return strcmp((string) $aDate, (string) $bDate);
+        }
+        return strcasecmp($a['name'], $b['name']);
+    });
+
+    respond([
+        'total' => count($allShows),
+        'shows' => $result,
+    ]);
+});
+
 // -- Watched episodes --
 
 route($routes, 'GET', '#^/shows/(\d+)/watched$#', function ($id) {

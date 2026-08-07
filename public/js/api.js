@@ -36,6 +36,9 @@ export const api = {
   getShow: (id) => request(`/tmdb/show/${id}`),
   getSeason: (id, seasonNumber) => request(`/tmdb/show/${id}/season/${seasonNumber}`),
 
+  // What to Watch
+  getWhatToWatch: () => request('/whattowatch'),
+
   // Watchlist
   listLibrary: () => request('/shows'),
   addToLibrary: (show) =>

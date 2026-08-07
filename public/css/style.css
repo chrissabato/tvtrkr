@@ -480,3 +480,29 @@ h2.section-title {
   font-size: 0.75rem;
   color: var(--text-dim);
 }
+
+.wtw-date {
+  color: var(--text-dim);
+}
+
+.wtw-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.wtw-badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--accent);
+  background: rgba(34, 211, 238, 0.12);
+  border-radius: 999px;
+  padding: 3px 9px;
+  white-space: nowrap;
+}
+
+.wtw-badge-zero {
+  color: var(--text-dim);
+  background: var(--surface-2);
+}

@@ -5,6 +5,7 @@ import { renderShowDetail } from './views/show-detail.js';
 import { renderCalendar } from './views/calendar.js';
 import { renderWatchlist } from './views/watchlist.js';
 import { renderUsers } from './views/users.js';
+import { renderWhatToWatch } from './views/whattowatch.js';
 
 const view = document.getElementById('view');
 const tabsNav = document.getElementById('tabs');
@@ -42,6 +43,10 @@ async function renderRoute() {
   try {
     switch (routeName) {
       case '':
+      case 'whattowatch':
+        setActiveTab('whattowatch');
+        await renderWhatToWatch(view);
+        break;
       case 'discover':
         setActiveTab('discover');
         await renderDiscover(view);
