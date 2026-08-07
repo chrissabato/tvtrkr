@@ -324,7 +324,7 @@ route($routes, 'DELETE', '#^/shows/(\d+)/watched/season/(\d+)$#', function ($id,
     respond(['ok' => true]);
 });
 
-// -- Calendar: upcoming episodes for tracked shows --
+// -- Calendar: recently aired + upcoming episodes for tracked shows --
 
 route($routes, 'GET', '#^/calendar$#', function () {
     $user = require_login();
@@ -333,7 +333,17 @@ route($routes, 'GET', '#^/calendar$#', function () {
     $stmt->execute([$user['id']]);
     $shows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    $upcoming = [];
+    $watchedStmt = $pdo->prepare('SELECT show_id, season_number, episode_number FROM watched_episodes WHERE user_id = ?');
+    $watchedStmt->execute([$user['id']]);
+    $watched = [];
+    foreach ($watchedStmt->fetchAll(PDO::FETCH_ASSOC) as $w) {
+        $watched[$w['show_id'] . ':' . $w['season_number'] . '-' . $w['episode_number']] = true;
+    }
+
+    $today = date('Y-m-d');
+    $recentCutoff = date('Y-m-d', strtotime('-14 days'));
+
+    $episodes = [];
     foreach ($shows as $show) {
         try {
             $details = tmdb_get('/tv/' . $show['tmdb_id']);
@@ -341,23 +351,34 @@ route($routes, 'GET', '#^/calendar$#', function () {
             continue; // skip shows TMDB can't currently resolve
         }
 
-        $next = $details['next_episode_to_air'] ?? null;
-        if ($next && !empty($next['air_date'])) {
-            $upcoming[] = [
+        foreach (['last_episode_to_air', 'next_episode_to_air'] as $key) {
+            $ep = $details[$key] ?? null;
+            if (!$ep || empty($ep['air_date'])) {
+                continue;
+            }
+            // Only surface recently-aired episodes within the cutoff window,
+            // not a show's entire watch history.
+            if ($key === 'last_episode_to_air' && $ep['air_date'] < $recentCutoff) {
+                continue;
+            }
+
+            $episodes[] = [
                 'show_id' => $show['tmdb_id'],
                 'show_name' => $show['name'],
                 'poster_path' => $show['poster_path'],
-                'air_date' => $next['air_date'],
-                'season_number' => $next['season_number'],
-                'episode_number' => $next['episode_number'],
-                'episode_name' => $next['name'],
+                'air_date' => $ep['air_date'],
+                'season_number' => $ep['season_number'],
+                'episode_number' => $ep['episode_number'],
+                'episode_name' => $ep['name'],
+                'aired' => $ep['air_date'] <= $today,
+                'watched' => isset($watched[$show['tmdb_id'] . ':' . $ep['season_number'] . '-' . $ep['episode_number']]),
             ];
         }
     }
 
-    usort($upcoming, fn($a, $b) => strcmp($a['air_date'], $b['air_date']));
+    usort($episodes, fn($a, $b) => strcmp($a['air_date'], $b['air_date']));
 
-    respond($upcoming);
+    respond($episodes);
 });
 
 function ensure_show_exists(int $userId, $tmdbId): void
