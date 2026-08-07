@@ -55,11 +55,12 @@ export async function renderCalendar(view) {
            <div class="calendar-list">${recent.map(episodeRow).join('')}</div>`
         : ''
     }
+    <div class="calendar-today-marker"><span>Today</span></div>
     ${
       upcoming.length
         ? `<h2 class="section-title">Upcoming</h2>
            <div class="calendar-list">${upcoming.map(episodeRow).join('')}</div>`
-        : ''
+        : '<p class="empty">No upcoming episodes.</p>'
     }
   `;
 

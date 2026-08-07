@@ -333,6 +333,27 @@ h2.section-title {
   gap: 10px;
 }
 
+.calendar-today-marker {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 14px 0;
+  color: var(--accent);
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.calendar-today-marker::before,
+.calendar-today-marker::after {
+  content: '';
+  flex: 1;
+  height: 2px;
+  background: var(--accent);
+  opacity: 0.4;
+}
+
 .calendar-row {
   display: flex;
   align-items: center;
