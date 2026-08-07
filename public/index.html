@@ -12,15 +12,25 @@
 </head>
 <body>
   <header class="topbar">
-    <h1 class="brand">tvtrkr</h1>
-    <nav class="tabs" id="tabs">
-      <a href="#/whattowatch" data-route="whattowatch">What to Watch</a>
-      <a href="#/discover" data-route="discover">Discover</a>
-      <a href="#/calendar" data-route="calendar">Calendar</a>
-      <a href="#/watchlist" data-route="watchlist">My Shows</a>
-      <a href="#/users" data-route="users" id="users-tab" hidden>Users</a>
-    </nav>
-    <div class="user-chip" id="user-chip" hidden></div>
+    <div class="topbar-inner">
+      <h1 class="brand">tvtrkr</h1>
+      <nav class="tabs" id="tabs">
+        <a href="#/whattowatch" data-route="whattowatch">What to Watch</a>
+        <a href="#/discover" data-route="discover">Discover</a>
+        <a href="#/calendar" data-route="calendar">Calendar</a>
+        <a href="#/watchlist" data-route="watchlist">My Shows</a>
+      </nav>
+      <div class="user-menu" id="user-menu" hidden>
+        <button class="user-menu-trigger" id="user-menu-trigger" type="button" aria-haspopup="true" aria-expanded="false">
+          <span class="avatar" id="user-avatar"></span>
+        </button>
+        <div class="user-menu-dropdown" id="user-menu-dropdown" hidden>
+          <div class="user-menu-name" id="user-menu-name"></div>
+          <a href="#/users" data-route="users" id="users-link" class="user-menu-item" hidden>Users</a>
+          <button id="logout-btn" class="user-menu-item danger" type="button">Sign out</button>
+        </div>
+      </div>
+    </div>
   </header>
 
   <main id="view" class="view">

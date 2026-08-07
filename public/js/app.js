@@ -9,26 +9,54 @@ import { renderWhatToWatch } from './views/whattowatch.js';
 
 const view = document.getElementById('view');
 const tabsNav = document.getElementById('tabs');
-const usersTab = document.getElementById('users-tab');
-const userChip = document.getElementById('user-chip');
-const tabLinks = document.querySelectorAll('.tabs a');
+const userMenu = document.getElementById('user-menu');
+const userMenuTrigger = document.getElementById('user-menu-trigger');
+const userMenuDropdown = document.getElementById('user-menu-dropdown');
+const userAvatar = document.getElementById('user-avatar');
+const userMenuName = document.getElementById('user-menu-name');
+const usersLink = document.getElementById('users-link');
+const logoutBtn = document.getElementById('logout-btn');
 
 let currentUser = null;
 
 function setActiveTab(routeName) {
-  tabLinks.forEach((link) => {
+  document.querySelectorAll('[data-route]').forEach((link) => {
     link.classList.toggle('active', link.dataset.route === routeName);
   });
 }
 
-function renderUserChip() {
-  userChip.hidden = false;
-  userChip.innerHTML = `
-    ${currentUser.picture_url ? `<img src="${currentUser.picture_url}" alt="" />` : ''}
-    <span>${currentUser.name || currentUser.email}</span>
-    <button id="logout-btn" class="btn" type="button">Sign out</button>
-  `;
-  userChip.querySelector('#logout-btn').addEventListener('click', async () => {
+function closeUserMenu() {
+  userMenuDropdown.hidden = true;
+  userMenuTrigger.setAttribute('aria-expanded', 'false');
+}
+
+function toggleUserMenu() {
+  const isOpen = !userMenuDropdown.hidden;
+  userMenuDropdown.hidden = isOpen;
+  userMenuTrigger.setAttribute('aria-expanded', String(!isOpen));
+}
+
+function renderUserMenu() {
+  userMenu.hidden = false;
+  const label = currentUser.name || currentUser.email;
+  userAvatar.innerHTML = currentUser.picture_url
+    ? `<img src="${currentUser.picture_url}" alt="" />`
+    : label.charAt(0).toUpperCase();
+  userMenuName.textContent = label;
+  usersLink.hidden = !currentUser.is_admin;
+
+  userMenuTrigger.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleUserMenu();
+  });
+  usersLink.addEventListener('click', closeUserMenu);
+  document.addEventListener('click', (e) => {
+    if (!userMenu.contains(e.target)) closeUserMenu();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeUserMenu();
+  });
+  logoutBtn.addEventListener('click', async () => {
     await api.logout().catch(() => {});
     window.location.reload();
   });
@@ -38,6 +66,7 @@ async function renderRoute() {
   const hash = window.location.hash.replace(/^#\/?/, '');
   const [routeName, param] = hash.split('/');
 
+  closeUserMenu();
   view.innerHTML = '<p class="loading">Loading…</p>';
 
   try {
@@ -90,14 +119,13 @@ async function init() {
     currentUser = await api.getMe();
   } catch (err) {
     tabsNav.hidden = true;
-    userChip.hidden = true;
+    userMenu.hidden = true;
     renderLogin(view);
     return;
   }
 
   tabsNav.hidden = false;
-  usersTab.hidden = !currentUser.is_admin;
-  renderUserChip();
+  renderUserMenu();
 
   window.addEventListener('hashchange', renderRoute);
   renderRoute();
