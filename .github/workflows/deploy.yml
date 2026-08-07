@@ -1,0 +1,69 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # config.local.php is gitignored (holds secrets), so it's generated
+      # fresh on every deploy from GitHub Actions secrets and synced along
+      # with the rest of the app.
+      - name: Render config.local.php from secrets
+        env:
+          TMDB_TOKEN: ${{ secrets.TMDB_TOKEN }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          APP_BASE_URL: ${{ secrets.APP_BASE_URL }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+        run: |
+          php -r '
+            $config = [
+                "tmdb_token" => getenv("TMDB_TOKEN"),
+                "google_client_id" => getenv("GOOGLE_CLIENT_ID"),
+                "google_client_secret" => getenv("GOOGLE_CLIENT_SECRET"),
+                "app_base_url" => getenv("APP_BASE_URL"),
+                "admin_email" => getenv("ADMIN_EMAIL"),
+            ];
+            file_put_contents(
+                "public/api/config.local.php",
+                "<?php\nreturn " . var_export($config, true) . ";\n"
+            );
+          '
+
+      - name: Set up SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+      # data/ (the SQLite database) is intentionally excluded so it's never
+      # touched by deploys.
+      - name: Sync app files to server
+        env:
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          rsync -az --delete \
+            --exclude='.git/' \
+            --exclude='.github/' \
+            --exclude='data/' \
+            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes" \
+            ./ "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/"
+
+      - name: Reload Apache
+        env:
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+        run: |
+          ssh -i ~/.ssh/deploy_key "$SSH_USER@$SSH_HOST" "sudo systemctl reload apache2"
