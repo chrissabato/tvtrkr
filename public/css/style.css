@@ -560,6 +560,13 @@ h2.section-title {
   background: var(--surface-2);
 }
 
+/* Overrides the poster sizing above for an avatar nested in a row (e.g. the People list). */
+.watchlist-row .avatar img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+}
+
 .watchlist-row .info {
   flex: 1;
 }
