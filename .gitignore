@@ -1,4 +1,5 @@
 /data/*.sqlite
 /data/*.sqlite.bak-*
 /public/api/config.local.php
+/scripts/pull-prod-db.local.sh
 .DS_Store

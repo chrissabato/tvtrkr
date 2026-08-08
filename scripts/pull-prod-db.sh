@@ -8,12 +8,17 @@
 
 set -euo pipefail
 
-SSH_KEY="$HOME/.ssh/tvtrkr_deploy"
-REMOTE="chrissabato@24.199.77.223"
-REMOTE_DB="/home/chrissabato/www/tvtrkr.chrissabato.com/data/tvtrkr.sqlite"
-REMOTE_TMP="/tmp/tvtrkr-pull-$$.sqlite"
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+LOCAL_CONFIG="$SCRIPT_DIR/pull-prod-db.local.sh"
+if [ ! -f "$LOCAL_CONFIG" ]; then
+  echo "Missing $LOCAL_CONFIG. Copy pull-prod-db.example.sh to pull-prod-db.local.sh and fill in your server details." >&2
+  exit 1
+fi
+# shellcheck source=/dev/null
+source "$LOCAL_CONFIG"
+
+REMOTE_TMP="/tmp/tvtrkr-pull-$$.sqlite"
 LOCAL_DB="$SCRIPT_DIR/../data/tvtrkr.sqlite"
 LOCAL_TMP="$(mktemp /tmp/tvtrkr-pull-local-XXXXXX.sqlite)"
 
