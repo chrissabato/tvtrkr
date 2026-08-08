@@ -6,6 +6,8 @@ import { renderCalendar } from './views/calendar.js';
 import { renderWatchlist } from './views/watchlist.js';
 import { renderUsers } from './views/users.js';
 import { renderWhatToWatch } from './views/whattowatch.js';
+import { renderPeople } from './views/people.js';
+import { renderProfile } from './views/profile.js';
 
 const view = document.getElementById('view');
 const tabsNav = document.getElementById('tabs');
@@ -99,6 +101,14 @@ async function renderRoute() {
       case 'show':
         setActiveTab(null);
         await renderShowDetail(view, param);
+        break;
+      case 'people':
+        setActiveTab('people');
+        await renderPeople(view);
+        break;
+      case 'u':
+        setActiveTab(null);
+        await renderProfile(view, param);
         break;
       default:
         view.innerHTML = '<p class="error">Page not found.</p>';

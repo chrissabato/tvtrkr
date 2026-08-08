@@ -251,12 +251,12 @@ route($routes, 'DELETE', '#^/shows/(\d+)$#', function ($id) {
 // shows on long hiatus).
 const WHATTOWATCH_SOON_DAYS = 14;
 
-route($routes, 'GET', '#^/whattowatch$#', function () {
-    $user = require_login();
-    $pdo = db();
-
-    sync_tracked_show_episodes($pdo, $user['id']);
-
+// Builds the per-show watch-status row (available count, next episode,
+// upcoming episode) for every show a user tracks, sorted with
+// ready-to-watch shows first. Shared by /whattowatch (which filters out
+// boring shows below) and the /people profile routes (which don't).
+function compute_show_watch_rows(PDO $pdo, int $userId): array
+{
     $today = date('Y-m-d');
 
     $availableStmt = $pdo->prepare('
@@ -269,7 +269,7 @@ route($routes, 'GET', '#^/whattowatch$#', function () {
         WHERE e.air_date <= :today AND w.show_id IS NULL
         ORDER BY e.show_id, e.season_number, e.episode_number
     ');
-    $availableStmt->execute(['user_id' => $user['id'], 'today' => $today]);
+    $availableStmt->execute(['user_id' => $userId, 'today' => $today]);
 
     // First row per show (in season/episode order) is the next one up; the
     // total row count per show is how many aired episodes are available.
@@ -290,7 +290,7 @@ route($routes, 'GET', '#^/whattowatch$#', function () {
         WHERE e.air_date > :today
         ORDER BY e.show_id, e.air_date, e.season_number, e.episode_number
     ');
-    $upcomingStmt->execute(['user_id' => $user['id'], 'today' => $today]);
+    $upcomingStmt->execute(['user_id' => $userId, 'today' => $today]);
 
     // First row per show is the soonest upcoming (not-yet-aired) episode.
     $upcomingByShow = [];
@@ -302,10 +302,8 @@ route($routes, 'GET', '#^/whattowatch$#', function () {
     }
 
     $showStmt = $pdo->prepare('SELECT tmdb_id, name, poster_path FROM shows WHERE user_id = ?');
-    $showStmt->execute([$user['id']]);
+    $showStmt->execute([$userId]);
     $allShows = $showStmt->fetchAll(PDO::FETCH_ASSOC);
-
-    $soonCutoff = date('Y-m-d', strtotime("$today +" . WHATTOWATCH_SOON_DAYS . ' days'));
 
     $result = [];
     foreach ($allShows as $show) {
@@ -313,10 +311,6 @@ route($routes, 'GET', '#^/whattowatch$#', function () {
         $next = $nextByShow[$showId] ?? null;
         $upcoming = $upcomingByShow[$showId] ?? null;
         $availableCount = $availableCounts[$showId] ?? 0;
-
-        if ($availableCount === 0 && (!$upcoming || $upcoming['air_date'] > $soonCutoff)) {
-            continue; // caught up with nothing airing soon — not worth surfacing
-        }
 
         $result[] = [
             'tmdb_id' => $showId,
@@ -353,10 +347,59 @@ route($routes, 'GET', '#^/whattowatch$#', function () {
         return strcasecmp($a['name'], $b['name']);
     });
 
+    return ['all_shows' => $allShows, 'rows' => $result];
+}
+
+route($routes, 'GET', '#^/whattowatch$#', function () {
+    $user = require_login();
+    $pdo = db();
+
+    sync_tracked_show_episodes($pdo, $user['id']);
+
+    ['all_shows' => $allShows, 'rows' => $rows] = compute_show_watch_rows($pdo, $user['id']);
+
+    $today = date('Y-m-d');
+    $soonCutoff = date('Y-m-d', strtotime("$today +" . WHATTOWATCH_SOON_DAYS . ' days'));
+
+    // Caught up with nothing airing soon — not worth surfacing here (finished
+    // shows, shows on long hiatus); the /people profile routes show these too.
+    $result = array_values(array_filter($rows, function ($show) use ($soonCutoff) {
+        $upcoming = $show['upcoming_episode'];
+        return $show['available_count'] > 0 || ($upcoming && $upcoming['air_date'] <= $soonCutoff);
+    }));
+
     respond([
         'total' => count($allShows),
         'shows' => $result,
     ]);
+});
+
+// -- Public profiles: any logged-in user can view another user's followed
+// shows and watch status (unfiltered — includes shows with nothing
+// available, unlike /whattowatch). --
+
+route($routes, 'GET', '#^/people$#', function () {
+    require_login();
+    $rows = db()->query('SELECT id, name, picture_url FROM users ORDER BY name COLLATE NOCASE ASC')
+        ->fetchAll(PDO::FETCH_ASSOC);
+    respond($rows);
+});
+
+route($routes, 'GET', '#^/people/(\d+)$#', function ($id) {
+    require_login();
+    $pdo = db();
+
+    $stmt = $pdo->prepare('SELECT id, name, picture_url FROM users WHERE id = ?');
+    $stmt->execute([$id]);
+    $person = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$person) {
+        respond_error('User not found', 404);
+    }
+
+    sync_tracked_show_episodes($pdo, (int) $id);
+    ['all_shows' => $allShows, 'rows' => $rows] = compute_show_watch_rows($pdo, (int) $id);
+
+    respond($person + ['total' => count($allShows), 'shows' => $rows]);
 });
 
 // -- Watched episodes --

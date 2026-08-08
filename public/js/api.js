@@ -39,6 +39,10 @@ export const api = {
   // What to Watch
   getWhatToWatch: () => request('/whattowatch'),
 
+  // People / public profiles
+  listPeople: () => request('/people'),
+  getPersonProfile: (id) => request(`/people/${id}`),
+
   // Watchlist
   listLibrary: () => request('/shows'),
   addToLibrary: (show) =>
