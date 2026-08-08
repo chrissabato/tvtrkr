@@ -23,7 +23,20 @@ function start_session(): void
     $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
         || ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https';
 
+    // The server's shared PHP install cleans up session files on its own
+    // schedule using php.ini's static gc_maxlifetime (24 min), ignoring any
+    // ini_set() we do here — so a 60-day cookie was still pointing at a
+    // session file deleted after 24 minutes of inactivity. Store our
+    // sessions in their own directory (next to the SQLite DB, outside the
+    // web root) so that cleanup never touches them, and do our own GC.
+    $sessionDir = dirname(DB_PATH) . '/sessions';
+    if (!is_dir($sessionDir)) {
+        mkdir($sessionDir, 0700, true);
+    }
+    session_save_path($sessionDir);
     ini_set('session.gc_maxlifetime', (string) SESSION_LIFETIME_SECONDS);
+    ini_set('session.gc_probability', '1');
+    ini_set('session.gc_divisor', '1000');
     session_set_cookie_params([
         'lifetime' => SESSION_LIFETIME_SECONDS,
         'path' => '/',
