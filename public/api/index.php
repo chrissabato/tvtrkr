@@ -5,6 +5,7 @@
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/http.php';
+require_once __DIR__ . '/mailer.php';
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/tmdb.php';
 
@@ -136,6 +137,21 @@ route($routes, 'POST', '#^/admin/users$#', function () {
 
     $stmt = db()->prepare('INSERT OR IGNORE INTO allowed_emails (email, added_by) VALUES (?, ?)');
     $stmt->execute([$email, $admin['id']]);
+
+    if ($stmt->rowCount() > 0) {
+        send_email(
+            $email,
+            "You're invited to tvtrkr",
+            email_layout(
+                '<p style="margin:0 0 4px;font-size:17px;font-weight:600;">You\'re invited to tvtrkr</p>'
+                . '<p style="margin:0;color:#555b68;">' . htmlspecialchars($admin['name'] ?? $admin['email']) . ' has invited you to track shows together on tvtrkr.</p>'
+                . '<p style="margin:16px 0 0;color:#555b68;">Sign in with Google using this email address to get started:<br><strong>' . htmlspecialchars($email) . '</strong></p>',
+                'Sign in to tvtrkr',
+                APP_BASE_URL
+            )
+        );
+    }
+
     respond(['ok' => true], 201);
 });
 
@@ -571,6 +587,28 @@ route($routes, 'POST', '#^/shows/(\d+)/watch-with$#', function ($tmdbId) {
     ')->execute([$groupId, $inviteeId, $user['id']]);
 
     $pdo->commit();
+
+    $inviteeStmt = $pdo->prepare('SELECT email, name FROM users WHERE id = ?');
+    $inviteeStmt->execute([$inviteeId]);
+    $invitee = $inviteeStmt->fetch(PDO::FETCH_ASSOC);
+
+    $showStmt = $pdo->prepare('SELECT name FROM shows WHERE tmdb_id = ? AND user_id = ?');
+    $showStmt->execute([$tmdbId, $user['id']]);
+    $showName = $showStmt->fetchColumn() ?: 'a show';
+
+    if ($invitee) {
+        send_email(
+            $invitee['email'],
+            ($user['name'] ?? $user['email']) . " wants to watch $showName with you",
+            email_layout(
+                '<p style="margin:0 0 4px;font-size:17px;font-weight:600;">Watch together?</p>'
+                . '<p style="margin:0;color:#555b68;">' . htmlspecialchars($user['name'] ?? $user['email']) . ' invited you to watch <strong>' . htmlspecialchars($showName) . '</strong> together on tvtrkr.</p>',
+                'Open tvtrkr',
+                APP_BASE_URL
+            )
+        );
+    }
+
     respond(['ok' => true], 201);
 });
 

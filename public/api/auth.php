@@ -4,6 +4,7 @@
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/http.php';
+require_once __DIR__ . '/mailer.php';
 
 define('GOOGLE_AUTH_URL', 'https://accounts.google.com/o/oauth2/v2/auth');
 define('GOOGLE_TOKEN_URL', 'https://oauth2.googleapis.com/token');
@@ -218,6 +219,19 @@ function find_or_create_user(string $googleSub, string $email, ?string $name, ?s
         $insert->execute([$googleSub, $email, $name, $picture, $isAdmin ? 1 : 0]);
         $userId = (int) $pdo->lastInsertId();
         import_legacy_data_for_user($pdo, $userId);
+
+        if ($email !== ADMIN_EMAIL && ADMIN_EMAIL !== '') {
+            send_email(
+                ADMIN_EMAIL,
+                "New tvtrkr user: $email",
+                email_layout(
+                    '<p style="margin:0 0 4px;font-size:17px;font-weight:600;">New sign-in</p>'
+                    . '<p style="margin:0;color:#555b68;"><strong>' . htmlspecialchars($name ?? $email) . '</strong> (' . htmlspecialchars($email) . ') just signed in to tvtrkr for the first time.</p>',
+                    'View users',
+                    APP_BASE_URL . '/#/users'
+                )
+            );
+        }
     }
 
     $stmt = $pdo->prepare('SELECT id, email, name, picture_url, is_admin FROM users WHERE id = ?');

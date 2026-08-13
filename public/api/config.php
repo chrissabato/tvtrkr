@@ -22,6 +22,10 @@ define('GOOGLE_CLIENT_SECRET', $config['google_client_secret'] ?? '');
 define('APP_BASE_URL', rtrim($config['app_base_url'] ?? '', '/'));
 define('ADMIN_EMAIL', strtolower(trim($config['admin_email'] ?? '')));
 
+define('MAILGUN_API_KEY', $config['mailgun_api_key'] ?? '');
+define('MAILGUN_DOMAIN', $config['mailgun_domain'] ?? '');
+define('MAIL_FROM', $config['mail_from'] ?? '');
+
 if (TMDB_TOKEN === '' || TMDB_TOKEN === 'PASTE_YOUR_TMDB_V4_READ_ACCESS_TOKEN_HERE') {
     http_response_code(500);
     header('Content-Type: application/json');

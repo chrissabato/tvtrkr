@@ -21,6 +21,9 @@ jobs:
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           APP_BASE_URL: ${{ secrets.APP_BASE_URL }}
           ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          MAILGUN_API_KEY: ${{ secrets.MAILGUN_API_KEY }}
+          MAILGUN_DOMAIN: ${{ secrets.MAILGUN_DOMAIN }}
+          MAIL_FROM: ${{ secrets.MAIL_FROM }}
         run: |
           php -r '
             $config = [
@@ -29,6 +32,9 @@ jobs:
                 "google_client_secret" => getenv("GOOGLE_CLIENT_SECRET"),
                 "app_base_url" => getenv("APP_BASE_URL"),
                 "admin_email" => getenv("ADMIN_EMAIL"),
+                "mailgun_api_key" => getenv("MAILGUN_API_KEY"),
+                "mailgun_domain" => getenv("MAILGUN_DOMAIN"),
+                "mail_from" => getenv("MAIL_FROM"),
             ];
             file_put_contents(
                 "public/api/config.local.php",

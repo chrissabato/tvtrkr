@@ -20,4 +20,13 @@ return [
     // Email address that is auto-approved and made admin on first login.
     // The admin can add more allowed emails from the Users screen.
     'admin_email' => '',
+
+    // Mailgun (https://www.mailgun.com) sending credentials, used for
+    // transactional emails (invites, watch-with notifications, admin
+    // alerts). Leave blank to disable sending — the app still works
+    // without them, it just skips email and logs instead.
+    'mailgun_api_key' => '',
+    'mailgun_domain' => '',
+    // "From" header for outgoing mail, e.g. 'tvtrkr <noreply@tvtrkr.chrissabato.com>'.
+    'mail_from' => '',
 ];
