@@ -315,6 +315,7 @@ h2.section-title {
 
 .detail-header {
   display: flex;
+  align-items: flex-start;
   gap: 16px;
   margin-bottom: 20px;
 }
