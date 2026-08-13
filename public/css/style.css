@@ -400,6 +400,27 @@ h2.section-title {
   font-style: italic;
 }
 
+.watch-with-trigger-avatars {
+  display: inline-flex;
+  align-items: center;
+}
+
+.watch-with-trigger-avatars .avatar {
+  width: 24px;
+  height: 24px;
+  font-size: 0.7rem;
+  border: 2px solid var(--bg);
+  margin-left: -8px;
+}
+
+.watch-with-trigger-avatars .avatar:first-child {
+  margin-left: 0;
+}
+
+.watch-with-trigger-avatars .avatar.pending {
+  opacity: 0.55;
+}
+
 .watch-with-invite {
   display: flex;
   gap: 8px;

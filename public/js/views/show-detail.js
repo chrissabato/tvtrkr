@@ -123,7 +123,17 @@ export async function renderShowDetail(view, id) {
     const invitable = people.filter((p) => p.id !== me.id && !excludeIds.has(p.id));
 
     watchWithTrigger.hidden = false;
-    watchWithTrigger.textContent = others.length ? `👥 Watching with ${others.length}` : 'Watch with…';
+    watchWithTrigger.innerHTML = others.length
+      ? `<span class="watch-with-trigger-avatars">${others
+          .map(
+            (m) => `
+              <span class="avatar${m.status === 'pending' ? ' pending' : ''}" title="${
+                m.name || 'Unnamed user'
+              }${m.status === 'pending' ? ' (invited)' : ''}">${avatarHtml(m)}</span>
+            `
+          )
+          .join('')}</span>`
+      : 'Watch with…';
 
     const chips = others
       .map(
