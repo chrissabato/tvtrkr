@@ -51,12 +51,24 @@ body {
 }
 
 .user-menu-trigger {
+  position: relative;
   display: block;
   padding: 0;
   border: none;
   background: none;
   cursor: pointer;
   border-radius: 50%;
+}
+
+.menu-dot {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--surface);
 }
 
 .avatar {
@@ -187,7 +199,7 @@ body {
   background: var(--surface-2);
 }
 
-.tabs .badge {
+.badge {
   display: inline-block;
   margin-left: 6px;
   padding: 1px 6px;

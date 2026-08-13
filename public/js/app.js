@@ -18,8 +18,11 @@ const userMenuDropdown = document.getElementById('user-menu-dropdown');
 const userAvatar = document.getElementById('user-avatar');
 const userMenuName = document.getElementById('user-menu-name');
 const usersLink = document.getElementById('users-link');
+const peopleLink = document.getElementById('people-link');
+const invitesLink = document.getElementById('invites-link');
 const logoutBtn = document.getElementById('logout-btn');
 const invitesBadge = document.getElementById('invites-badge');
+const invitesDot = document.getElementById('invites-dot');
 
 let currentUser = null;
 
@@ -54,6 +57,8 @@ function renderUserMenu() {
     toggleUserMenu();
   });
   usersLink.addEventListener('click', closeUserMenu);
+  peopleLink.addEventListener('click', closeUserMenu);
+  invitesLink.addEventListener('click', closeUserMenu);
   document.addEventListener('click', (e) => {
     if (!userMenu.contains(e.target)) closeUserMenu();
   });
@@ -70,6 +75,7 @@ async function refreshInvitesBadge() {
   const invites = await api.listWatchInvites().catch(() => []);
   invitesBadge.textContent = invites.length;
   invitesBadge.hidden = invites.length === 0;
+  invitesDot.hidden = invites.length === 0;
 }
 
 async function renderRoute() {

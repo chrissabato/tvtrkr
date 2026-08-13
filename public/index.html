@@ -19,15 +19,16 @@
         <a href="#/discover" data-route="discover">Discover</a>
         <a href="#/calendar" data-route="calendar">Calendar</a>
         <a href="#/watchlist" data-route="watchlist">My Shows</a>
-        <a href="#/people" data-route="people">People</a>
-        <a href="#/invites" data-route="invites" id="invites-link">Invites<span class="badge" id="invites-badge" hidden></span></a>
       </nav>
       <div class="user-menu" id="user-menu" hidden>
         <button class="user-menu-trigger" id="user-menu-trigger" type="button" aria-haspopup="true" aria-expanded="false">
           <span class="avatar" id="user-avatar"></span>
+          <span class="menu-dot" id="invites-dot" hidden></span>
         </button>
         <div class="user-menu-dropdown" id="user-menu-dropdown" hidden>
           <div class="user-menu-name" id="user-menu-name"></div>
+          <a href="#/people" data-route="people" id="people-link" class="user-menu-item">People</a>
+          <a href="#/invites" data-route="invites" id="invites-link" class="user-menu-item">Invites<span class="badge" id="invites-badge" hidden></span></a>
           <a href="#/users" data-route="users" id="users-link" class="user-menu-item" hidden>Users</a>
           <button id="logout-btn" class="user-menu-item danger" type="button">Sign out</button>
         </div>
