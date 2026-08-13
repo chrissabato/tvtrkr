@@ -240,7 +240,14 @@ route($routes, 'POST', '#^/shows$#', function () {
 
 route($routes, 'DELETE', '#^/shows/(\d+)$#', function ($id) {
     $user = require_login();
-    db()->prepare('DELETE FROM shows WHERE user_id = ? AND tmdb_id = ?')->execute([$user['id'], $id]);
+    $pdo = db();
+    $pdo->beginTransaction();
+    // Leave any watch-with group first — otherwise a peer's future watched
+    // write would violate the watched_episodes -> shows foreign key once
+    // this user's shows row is gone.
+    leave_watch_group($pdo, $user['id'], $id);
+    $pdo->prepare('DELETE FROM shows WHERE user_id = ? AND tmdb_id = ?')->execute([$user['id'], $id]);
+    $pdo->commit();
     respond(['ok' => true]);
 });
 
@@ -423,12 +430,17 @@ route($routes, 'POST', '#^/shows/(\d+)/watched$#', function ($id) {
 
     ensure_show_exists($user['id'], $id);
 
-    $stmt = db()->prepare('
+    $pdo = db();
+    $stmt = $pdo->prepare('
         INSERT INTO watched_episodes (user_id, show_id, season_number, episode_number)
         VALUES (?, ?, ?, ?)
         ON CONFLICT(user_id, show_id, season_number, episode_number) DO NOTHING
     ');
-    $stmt->execute([$user['id'], $id, $season, $episode]);
+    $pdo->beginTransaction();
+    foreach (get_watch_group_peers($pdo, $user['id'], $id) as $peerId) {
+        $stmt->execute([$peerId, $id, $season, $episode]);
+    }
+    $pdo->commit();
     respond(['ok' => true], 201);
 });
 
@@ -441,9 +453,15 @@ route($routes, 'DELETE', '#^/shows/(\d+)/watched$#', function ($id) {
         respond_error('season and episode query params are required');
     }
 
-    db()->prepare('
+    $pdo = db();
+    $stmt = $pdo->prepare('
         DELETE FROM watched_episodes WHERE user_id = ? AND show_id = ? AND season_number = ? AND episode_number = ?
-    ')->execute([$user['id'], $id, $season, $episode]);
+    ');
+    $pdo->beginTransaction();
+    foreach (get_watch_group_peers($pdo, $user['id'], $id) as $peerId) {
+        $stmt->execute([$peerId, $id, $season, $episode]);
+    }
+    $pdo->commit();
     respond(['ok' => true]);
 });
 
@@ -461,14 +479,17 @@ route($routes, 'POST', '#^/shows/(\d+)/watched/season/(\d+)$#', function ($id, $
     ensure_show_exists($user['id'], $id);
 
     $pdo = db();
+    $peers = get_watch_group_peers($pdo, $user['id'], $id);
     $stmt = $pdo->prepare('
         INSERT INTO watched_episodes (user_id, show_id, season_number, episode_number)
         VALUES (?, ?, ?, ?)
         ON CONFLICT(user_id, show_id, season_number, episode_number) DO NOTHING
     ');
     $pdo->beginTransaction();
-    for ($ep = 1; $ep <= $episodeCount; $ep++) {
-        $stmt->execute([$user['id'], $id, $season, $ep]);
+    foreach ($peers as $peerId) {
+        for ($ep = 1; $ep <= $episodeCount; $ep++) {
+            $stmt->execute([$peerId, $id, $season, $ep]);
+        }
     }
     $pdo->commit();
 
@@ -477,8 +498,155 @@ route($routes, 'POST', '#^/shows/(\d+)/watched/season/(\d+)$#', function ($id, $
 
 route($routes, 'DELETE', '#^/shows/(\d+)/watched/season/(\d+)$#', function ($id, $season) {
     $user = require_login();
-    db()->prepare('DELETE FROM watched_episodes WHERE user_id = ? AND show_id = ? AND season_number = ?')
-        ->execute([$user['id'], $id, $season]);
+    $pdo = db();
+    $stmt = $pdo->prepare('DELETE FROM watched_episodes WHERE user_id = ? AND show_id = ? AND season_number = ?');
+    $pdo->beginTransaction();
+    foreach (get_watch_group_peers($pdo, $user['id'], $id) as $peerId) {
+        $stmt->execute([$peerId, $id, $season]);
+    }
+    $pdo->commit();
+    respond(['ok' => true]);
+});
+
+// -- Watch with: link two or more users' watched_episodes for a show so
+// marking an episode watched by any accepted member fans out to everyone
+// (see get_watch_group_peers(), used by the watched-episode routes above).
+
+route($routes, 'GET', '#^/shows/(\d+)/watch-with$#', function ($tmdbId) {
+    $user = require_login();
+    $pdo = db();
+
+    $groupId = find_watch_group_id($pdo, $user['id'], $tmdbId);
+    if ($groupId === null) {
+        respond(['members' => []]);
+    }
+
+    $stmt = $pdo->prepare('
+        SELECT u.id, u.name, u.picture_url, m.status
+        FROM watch_group_members m
+        JOIN users u ON u.id = m.user_id
+        WHERE m.group_id = ?
+        ORDER BY m.joined_at ASC
+    ');
+    $stmt->execute([$groupId]);
+    respond(['members' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
+});
+
+route($routes, 'POST', '#^/shows/(\d+)/watch-with$#', function ($tmdbId) {
+    $user = require_login();
+    $body = json_body();
+    $inviteeId = (int) ($body['user_id'] ?? 0);
+
+    if ($inviteeId <= 0) {
+        respond_error('user_id is required');
+    }
+    if ($inviteeId === $user['id']) {
+        respond_error("Can't invite yourself");
+    }
+
+    ensure_show_exists($user['id'], $tmdbId);
+
+    $pdo = db();
+
+    if (find_watch_group_id($pdo, $inviteeId, $tmdbId) !== null) {
+        respond_error('That person is already watching this show with someone', 409);
+    }
+
+    $pdo->beginTransaction();
+
+    $groupId = find_watch_group_id($pdo, $user['id'], $tmdbId);
+    if ($groupId === null) {
+        $pdo->prepare('INSERT INTO watch_groups (tmdb_id, created_by) VALUES (?, ?)')
+            ->execute([$tmdbId, $user['id']]);
+        $groupId = (int) $pdo->lastInsertId();
+        $pdo->prepare('
+            INSERT INTO watch_group_members (group_id, user_id, status, invited_by)
+            VALUES (?, ?, \'accepted\', ?)
+        ')->execute([$groupId, $user['id'], $user['id']]);
+    }
+
+    $pdo->prepare('
+        INSERT INTO watch_group_members (group_id, user_id, status, invited_by)
+        VALUES (?, ?, \'pending\', ?)
+    ')->execute([$groupId, $inviteeId, $user['id']]);
+
+    $pdo->commit();
+    respond(['ok' => true], 201);
+});
+
+route($routes, 'DELETE', '#^/shows/(\d+)/watch-with$#', function ($tmdbId) {
+    $user = require_login();
+    $pdo = db();
+    $pdo->beginTransaction();
+    leave_watch_group($pdo, $user['id'], $tmdbId);
+    $pdo->commit();
+    respond(['ok' => true]);
+});
+
+route($routes, 'GET', '#^/watch-invites$#', function () {
+    $user = require_login();
+
+    $stmt = db()->prepare('
+        SELECT
+            g.id AS group_id, g.tmdb_id,
+            s.name AS show_name, s.poster_path,
+            inviter.name AS inviter_name, inviter.picture_url AS inviter_picture_url
+        FROM watch_group_members m
+        JOIN watch_groups g ON g.id = m.group_id
+        JOIN users inviter ON inviter.id = m.invited_by
+        LEFT JOIN shows s ON s.tmdb_id = g.tmdb_id AND s.user_id = g.created_by
+        WHERE m.user_id = ? AND m.status = \'pending\'
+        ORDER BY m.joined_at DESC
+    ');
+    $stmt->execute([$user['id']]);
+    respond($stmt->fetchAll(PDO::FETCH_ASSOC));
+});
+
+route($routes, 'POST', '#^/watch-invites/(\d+)/accept$#', function ($groupId) {
+    $user = require_login();
+    $pdo = db();
+
+    $tmdbId = require_pending_invite($pdo, $user['id'], $groupId);
+
+    $pdo->beginTransaction();
+    $pdo->prepare("UPDATE watch_group_members SET status = 'accepted' WHERE group_id = ? AND user_id = ?")
+        ->execute([$groupId, $user['id']]);
+
+    // Copy an existing member's show metadata into the invitee's own
+    // library row rather than re-fetching from TMDB.
+    $source = $pdo->prepare('SELECT * FROM shows WHERE tmdb_id = ? LIMIT 1');
+    $source->execute([$tmdbId]);
+    $show = $source->fetch(PDO::FETCH_ASSOC);
+    if ($show) {
+        $pdo->prepare('
+            INSERT INTO shows (user_id, tmdb_id, name, poster_path, backdrop_path, overview, first_air_date, status)
+            VALUES (:user_id, :tmdb_id, :name, :poster_path, :backdrop_path, :overview, :first_air_date, :status)
+            ON CONFLICT(user_id, tmdb_id) DO NOTHING
+        ')->execute([
+            'user_id' => $user['id'],
+            'tmdb_id' => $tmdbId,
+            'name' => $show['name'],
+            'poster_path' => $show['poster_path'],
+            'backdrop_path' => $show['backdrop_path'],
+            'overview' => $show['overview'],
+            'first_air_date' => $show['first_air_date'],
+            'status' => $show['status'],
+        ]);
+    }
+    $pdo->commit();
+
+    respond(['ok' => true]);
+});
+
+route($routes, 'POST', '#^/watch-invites/(\d+)/decline$#', function ($groupId) {
+    $user = require_login();
+    $pdo = db();
+
+    require_pending_invite($pdo, $user['id'], $groupId);
+
+    $pdo->prepare("DELETE FROM watch_group_members WHERE group_id = ? AND user_id = ? AND status = 'pending'")
+        ->execute([$groupId, $user['id']]);
+
     respond(['ok' => true]);
 });
 
@@ -662,6 +830,75 @@ function ensure_show_exists(int $userId, $tmdbId): void
     if (!$stmt->fetch()) {
         respond_error('Show is not in your library yet', 404);
     }
+}
+
+// Returns the accepted-member user_ids sharing a watch group with $userId
+// for this show (including $userId itself), or just [$userId] if $userId
+// isn't in one. Used to fan out watched-episode writes to everyone
+// watching a show together.
+function get_watch_group_peers(PDO $pdo, int $userId, $tmdbId): array
+{
+    $groupId = find_watch_group_id($pdo, $userId, $tmdbId);
+    if ($groupId === null) {
+        return [$userId];
+    }
+
+    $stmt = $pdo->prepare("SELECT user_id FROM watch_group_members WHERE group_id = ? AND status = 'accepted'");
+    $stmt->execute([$groupId]);
+    return array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+}
+
+// The watch_groups.id that $userId belongs to (pending or accepted) for
+// this show, or null if they're not linked with anyone on it.
+function find_watch_group_id(PDO $pdo, int $userId, $tmdbId): ?int
+{
+    $stmt = $pdo->prepare('
+        SELECT g.id
+        FROM watch_group_members m
+        JOIN watch_groups g ON g.id = m.group_id
+        WHERE m.user_id = ? AND g.tmdb_id = ?
+    ');
+    $stmt->execute([$userId, $tmdbId]);
+    $id = $stmt->fetchColumn();
+    return $id === false ? null : (int) $id;
+}
+
+// Removes $userId from their watch group for this show, if any. If fewer
+// than 2 members remain afterward, the group itself is deleted (past
+// watched data is untouched either way). No-op if not in a group.
+function leave_watch_group(PDO $pdo, int $userId, $tmdbId): void
+{
+    $groupId = find_watch_group_id($pdo, $userId, $tmdbId);
+    if ($groupId === null) {
+        return;
+    }
+
+    $pdo->prepare('DELETE FROM watch_group_members WHERE group_id = ? AND user_id = ?')
+        ->execute([$groupId, $userId]);
+
+    $stmt = $pdo->prepare('SELECT COUNT(*) FROM watch_group_members WHERE group_id = ?');
+    $stmt->execute([$groupId]);
+    if ((int) $stmt->fetchColumn() < 2) {
+        $pdo->prepare('DELETE FROM watch_groups WHERE id = ?')->execute([$groupId]);
+    }
+}
+
+// Validates that $groupId is a real, still-pending invite for $userId and
+// returns the group's tmdb_id; 404s otherwise.
+function require_pending_invite(PDO $pdo, int $userId, $groupId): int
+{
+    $stmt = $pdo->prepare("
+        SELECT g.tmdb_id
+        FROM watch_group_members m
+        JOIN watch_groups g ON g.id = m.group_id
+        WHERE m.group_id = ? AND m.user_id = ? AND m.status = 'pending'
+    ");
+    $stmt->execute([$groupId, $userId]);
+    $tmdbId = $stmt->fetchColumn();
+    if ($tmdbId === false) {
+        respond_error('Invite not found', 404);
+    }
+    return (int) $tmdbId;
 }
 
 // Minimal standalone HTML page for the OAuth callback's browser-facing

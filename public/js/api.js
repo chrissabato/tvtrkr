@@ -43,6 +43,18 @@ export const api = {
   listPeople: () => request('/people'),
   getPersonProfile: (id) => request(`/people/${id}`),
 
+  // Watch with
+  getWatchWith: (tmdbId) => request(`/shows/${tmdbId}/watch-with`),
+  inviteWatchWith: (tmdbId, userId) =>
+    request(`/shows/${tmdbId}/watch-with`, {
+      method: 'POST',
+      body: JSON.stringify({ user_id: userId }),
+    }),
+  leaveWatchWith: (tmdbId) => request(`/shows/${tmdbId}/watch-with`, { method: 'DELETE' }),
+  listWatchInvites: () => request('/watch-invites'),
+  acceptWatchInvite: (groupId) => request(`/watch-invites/${groupId}/accept`, { method: 'POST' }),
+  declineWatchInvite: (groupId) => request(`/watch-invites/${groupId}/decline`, { method: 'POST' }),
+
   // Watchlist
   listLibrary: () => request('/shows'),
   addToLibrary: (show) =>

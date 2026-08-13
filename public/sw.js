@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'tvtrkr-v15';
+const CACHE_VERSION = 'tvtrkr-v16';
 
 const APP_SHELL = [
   '/',
@@ -16,6 +16,7 @@ const APP_SHELL = [
   '/js/views/whattowatch.js',
   '/js/views/people.js',
   '/js/views/profile.js',
+  '/js/views/watch-invites.js',
   '/img/icon.svg',
 ];
 

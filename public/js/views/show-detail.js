@@ -15,10 +15,11 @@ export async function renderShowDetail(view, id) {
 
   view.innerHTML = '<p class="loading">Loading show…</p>';
 
-  const [show, library, watchedRows] = await Promise.all([
+  const [show, library, watchedRows, me] = await Promise.all([
     api.getShow(showId),
     api.listLibrary(),
     api.listWatched(showId).catch(() => []), // show may not be in library yet
+    api.getMe(),
   ]);
 
   let inLibrary = library.some((s) => s.tmdb_id === showId);
@@ -48,6 +49,7 @@ export async function renderShowDetail(view, id) {
         <button class="btn ${inLibrary ? 'active' : ''}" id="toggle-library">
           ${inLibrary ? '✓ In My Shows' : '+ Add to My Shows'}
         </button>
+        <div id="watch-with"></div>
       </div>
     </div>
     <h2 class="section-title">Seasons</h2>
@@ -55,10 +57,80 @@ export async function renderShowDetail(view, id) {
   `;
 
   const toggleBtn = view.querySelector('#toggle-library');
+  const watchWithEl = view.querySelector('#watch-with');
 
   function syncLibraryButton() {
     toggleBtn.textContent = inLibrary ? '✓ In My Shows' : '+ Add to My Shows';
     toggleBtn.classList.toggle('active', inLibrary);
+  }
+
+  function avatarHtml(person) {
+    const initial = (person.name || '?').charAt(0).toUpperCase();
+    return person.picture_url ? `<img src="${person.picture_url}" alt="" />` : initial;
+  }
+
+  // Renders who this show is being watched with (if anyone), plus controls
+  // to invite someone or leave the group. Checking off an episode fans out
+  // to every accepted member server-side, so there's no per-user state to
+  // render here beyond who's involved.
+  async function renderWatchWith() {
+    if (!inLibrary) {
+      watchWithEl.innerHTML = '';
+      return;
+    }
+
+    const [{ members }, people] = await Promise.all([api.getWatchWith(showId), api.listPeople()]);
+    const others = members.filter((m) => m.id !== me.id);
+    const iAmInGroup = members.some((m) => m.id === me.id);
+    const excludeIds = new Set(members.map((m) => m.id));
+    const invitable = people.filter((p) => p.id !== me.id && !excludeIds.has(p.id));
+
+    const chips = others
+      .map(
+        (m) => `
+          <span class="watch-with-chip${m.status === 'pending' ? ' pending' : ''}">
+            <span class="avatar">${avatarHtml(m)}</span>
+            ${m.name || 'Unnamed user'}${m.status === 'pending' ? ' (invited)' : ''}
+          </span>
+        `
+      )
+      .join('');
+
+    const inviteControl = invitable.length
+      ? `
+        <select id="watch-with-picker">
+          ${invitable.map((p) => `<option value="${p.id}">${p.name || 'Unnamed user'}</option>`).join('')}
+        </select>
+        <button class="btn" id="watch-with-invite-btn">Watch this with…</button>
+      `
+      : '';
+
+    watchWithEl.innerHTML = `
+      <div class="watch-with-section">
+        ${chips ? `<div class="watch-with-members">${chips}</div>` : ''}
+        ${inviteControl}
+        ${iAmInGroup ? '<button class="btn btn-text" id="watch-with-leave-btn">Stop watching together</button>' : ''}
+      </div>
+    `;
+
+    const inviteBtn = watchWithEl.querySelector('#watch-with-invite-btn');
+    if (inviteBtn) {
+      inviteBtn.addEventListener('click', async () => {
+        inviteBtn.disabled = true;
+        const userId = Number(watchWithEl.querySelector('#watch-with-picker').value);
+        await api.inviteWatchWith(showId, userId);
+        await renderWatchWith();
+      });
+    }
+
+    const leaveBtn = watchWithEl.querySelector('#watch-with-leave-btn');
+    if (leaveBtn) {
+      leaveBtn.addEventListener('click', async () => {
+        leaveBtn.disabled = true;
+        await api.leaveWatchWith(showId);
+        await renderWatchWith();
+      });
+    }
   }
 
   async function addShowToLibrary() {
@@ -73,6 +145,7 @@ export async function renderShowDetail(view, id) {
     });
     inLibrary = true;
     syncLibraryButton();
+    await renderWatchWith();
   }
 
   toggleBtn.addEventListener('click', async () => {
@@ -81,11 +154,14 @@ export async function renderShowDetail(view, id) {
       await api.removeFromLibrary(showId);
       inLibrary = false;
       syncLibraryButton();
+      await renderWatchWith();
     } else {
       await addShowToLibrary();
     }
     toggleBtn.disabled = false;
   });
+
+  renderWatchWith();
 
   const seasonsContainer = view.querySelector('#seasons');
 

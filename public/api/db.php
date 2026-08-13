@@ -92,6 +92,32 @@ function db(): PDO
         )
     ');
 
+    // "Watch with" — links two or more users' watched_episodes for one show
+    // so marking an episode watched by any accepted member fans out to all
+    // of them. A group is scoped to a single show; a user may belong to at
+    // most one group per show (enforced in application code).
+    $pdo->exec('
+        CREATE TABLE IF NOT EXISTS watch_groups (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tmdb_id INTEGER NOT NULL,
+            created_by INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            created_at TEXT NOT NULL DEFAULT (datetime(\'now\'))
+        )
+    ');
+
+    $pdo->exec('
+        CREATE TABLE IF NOT EXISTS watch_group_members (
+            group_id INTEGER NOT NULL REFERENCES watch_groups(id) ON DELETE CASCADE,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            status TEXT NOT NULL DEFAULT \'pending\',
+            invited_by INTEGER NOT NULL REFERENCES users(id),
+            joined_at TEXT NOT NULL DEFAULT (datetime(\'now\')),
+            PRIMARY KEY (group_id, user_id)
+        )
+    ');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_watch_groups_tmdb_id ON watch_groups (tmdb_id)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_watch_group_members_user ON watch_group_members (user_id)');
+
     seed_admin_allowlist($pdo);
 
     return $pdo;

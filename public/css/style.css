@@ -187,6 +187,17 @@ body {
   background: var(--surface-2);
 }
 
+.tabs .badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #05262b;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
 @media (max-width: 480px) {
   .topbar-inner {
     padding: 10px 12px;
@@ -345,6 +356,57 @@ h2.section-title {
 .btn.danger {
   border-color: var(--danger);
   color: var(--danger);
+}
+
+.btn-text {
+  border-color: transparent;
+  color: var(--text-dim);
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.watch-with-section {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.watch-with-members {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.watch-with-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px 4px 4px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  font-size: 0.8rem;
+}
+
+.watch-with-chip .avatar {
+  width: 22px;
+  height: 22px;
+  font-size: 0.7rem;
+}
+
+.watch-with-chip.pending {
+  opacity: 0.6;
+  font-style: italic;
+}
+
+.watch-with-section select {
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--surface-2);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  font-size: 0.85rem;
 }
 
 .season-block {

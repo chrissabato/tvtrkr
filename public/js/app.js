@@ -8,6 +8,7 @@ import { renderUsers } from './views/users.js';
 import { renderWhatToWatch } from './views/whattowatch.js';
 import { renderPeople } from './views/people.js';
 import { renderProfile } from './views/profile.js';
+import { renderWatchInvites } from './views/watch-invites.js';
 
 const view = document.getElementById('view');
 const tabsNav = document.getElementById('tabs');
@@ -18,6 +19,7 @@ const userAvatar = document.getElementById('user-avatar');
 const userMenuName = document.getElementById('user-menu-name');
 const usersLink = document.getElementById('users-link');
 const logoutBtn = document.getElementById('logout-btn');
+const invitesBadge = document.getElementById('invites-badge');
 
 let currentUser = null;
 
@@ -62,6 +64,12 @@ function renderUserMenu() {
     await api.logout().catch(() => {});
     window.location.reload();
   });
+}
+
+async function refreshInvitesBadge() {
+  const invites = await api.listWatchInvites().catch(() => []);
+  invitesBadge.textContent = invites.length;
+  invitesBadge.hidden = invites.length === 0;
 }
 
 async function renderRoute() {
@@ -110,6 +118,11 @@ async function renderRoute() {
         setActiveTab(null);
         await renderProfile(view, param);
         break;
+      case 'invites':
+        setActiveTab('invites');
+        await renderWatchInvites(view, refreshInvitesBadge);
+        refreshInvitesBadge();
+        break;
       default:
         view.innerHTML = '<p class="error">Page not found.</p>';
     }
@@ -136,6 +149,7 @@ async function init() {
 
   tabsNav.hidden = false;
   renderUserMenu();
+  refreshInvitesBadge();
 
   window.addEventListener('hashchange', renderRoute);
   renderRoute();
