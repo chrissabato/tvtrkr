@@ -1,5 +1,25 @@
 import { api, posterUrl } from '../api.js';
 
+function avatarHtml(person) {
+  const initial = (person.name || '?').charAt(0).toUpperCase();
+  return person.picture_url ? `<img src="${person.picture_url}" alt="" />` : initial;
+}
+
+function watchWithHtml(members) {
+  if (!members.length) return '';
+  return `
+    <span class="watch-with-trigger-avatars">${members
+      .map(
+        (m) => `
+          <span class="avatar${m.status === 'pending' ? ' pending' : ''}" title="${
+            m.name || 'Unnamed user'
+          }${m.status === 'pending' ? ' (invited)' : ''}">${avatarHtml(m)}</span>
+        `
+      )
+      .join('')}</span>
+  `;
+}
+
 export async function renderWatchlist(view) {
   view.innerHTML = '<p class="loading">Loading your shows…</p>';
 
@@ -30,6 +50,7 @@ export async function renderWatchlist(view) {
         <div class="show-name">${show.name}</div>
         <div class="progress">${show.watched_count} episode${show.watched_count === 1 ? '' : 's'} watched</div>
       </div>
+      ${watchWithHtml(show.watch_with || [])}
       <button class="btn danger" data-remove="${show.tmdb_id}">Remove</button>
     `;
     list.appendChild(row);

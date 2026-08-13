@@ -226,9 +226,33 @@ route($routes, 'GET', '#^/shows$#', function () {
     $countStmt->execute([$user['id']]);
     $counts = $countStmt->fetchAll(PDO::FETCH_KEY_PAIR);
 
+    // Who each show is being watched with, if anyone (mirrors GET
+    // /shows/:id/watch-with but for every show at once, so the list view
+    // can show avatars without a request per row).
+    $watchWithStmt = $pdo->prepare('
+        SELECT g.tmdb_id, u.id, u.name, u.picture_url, m2.status
+        FROM watch_group_members m1
+        JOIN watch_groups g ON g.id = m1.group_id
+        JOIN watch_group_members m2 ON m2.group_id = g.id AND m2.user_id != m1.user_id
+        JOIN users u ON u.id = m2.user_id
+        WHERE m1.user_id = ?
+        ORDER BY g.tmdb_id, m2.joined_at ASC
+    ');
+    $watchWithStmt->execute([$user['id']]);
+    $watchWithByShow = [];
+    foreach ($watchWithStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $watchWithByShow[$row['tmdb_id']][] = [
+            'id' => (int) $row['id'],
+            'name' => $row['name'],
+            'picture_url' => $row['picture_url'],
+            'status' => $row['status'],
+        ];
+    }
+
     foreach ($shows as &$show) {
         unset($show['user_id']);
         $show['watched_count'] = (int) ($counts[$show['tmdb_id']] ?? 0);
+        $show['watch_with'] = $watchWithByShow[$show['tmdb_id']] ?? [];
     }
 
     respond($shows);
