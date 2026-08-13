@@ -3,10 +3,19 @@ import { api } from '../api.js';
 export async function renderUsers(view, currentUser) {
   view.innerHTML = '<p class="loading">Loading users…</p>';
 
-  const users = await api.listAllowedUsers();
+  const [users, mailUsage] = await Promise.all([
+    api.listAllowedUsers(),
+    api.getMailUsage().catch(() => null),
+  ]);
+
+  const usageHtml =
+    mailUsage && mailUsage.current !== null
+      ? `<p class="mail-usage${mailUsage.current >= mailUsage.limit * 0.9 ? ' warn' : ''}">${mailUsage.current.toLocaleString()} / ${mailUsage.limit.toLocaleString()} emails sent this month</p>`
+      : '';
 
   view.innerHTML = `
     <h2 class="section-title">Users</h2>
+    ${usageHtml}
     <form class="search-row" id="add-user-form">
       <input type="email" id="add-user-email" placeholder="name@example.com" autocomplete="off" required />
       <button type="submit">Add</button>

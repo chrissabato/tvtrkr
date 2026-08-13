@@ -278,6 +278,16 @@ h2.section-title {
   margin: 24px 0 12px;
 }
 
+.mail-usage {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  margin: -8px 0 16px;
+}
+
+.mail-usage.warn {
+  color: var(--danger);
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));

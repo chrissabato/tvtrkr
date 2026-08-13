@@ -28,6 +28,7 @@ export const api = {
     request('/admin/users', { method: 'POST', body: JSON.stringify({ email }) }),
   removeAllowedUser: (email) =>
     request(`/admin/users/${encodeURIComponent(email)}`, { method: 'DELETE' }),
+  getMailUsage: () => request('/admin/mail-usage'),
 
   // TMDB proxy
   searchShows: (query, page = 1) =>

@@ -167,6 +167,15 @@ route($routes, 'DELETE', '#^/admin/users/([^/]+)$#', function ($encodedEmail) {
     respond(['ok' => true]);
 });
 
+route($routes, 'GET', '#^/admin/mail-usage$#', function () {
+    require_admin();
+    $current = get_monthly_email_count();
+    respond([
+        'current' => $current,
+        'limit' => MAIL_MONTHLY_LIMIT,
+    ]);
+});
+
 // -- TMDB read-through proxy routes --
 
 route($routes, 'GET', '#^/tmdb/search$#', function () {

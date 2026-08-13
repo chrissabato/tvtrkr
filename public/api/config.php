@@ -25,6 +25,10 @@ define('ADMIN_EMAIL', strtolower(trim($config['admin_email'] ?? '')));
 define('MAILGUN_API_KEY', $config['mailgun_api_key'] ?? '');
 define('MAILGUN_DOMAIN', $config['mailgun_domain'] ?? '');
 define('MAIL_FROM', $config['mail_from'] ?? '');
+// Mailgun free-tier monthly cap, used only to flag usage on the admin
+// Users page — not a secret, so it's a plain constant rather than a
+// config.local.php / GitHub Actions secret value.
+define('MAIL_MONTHLY_LIMIT', 1000);
 
 if (TMDB_TOKEN === '' || TMDB_TOKEN === 'PASTE_YOUR_TMDB_V4_READ_ACCESS_TOKEN_HERE') {
     http_response_code(500);

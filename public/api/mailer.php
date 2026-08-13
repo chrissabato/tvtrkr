@@ -95,3 +95,37 @@ function send_email(string $to, string $subject, string $html): void
         error_log("Mailgun send to $to failed: HTTP $status $body");
     }
 }
+
+// Account-wide count of emails accepted by Mailgun so far this calendar
+// month (across all domains on the account, not just MAILGUN_DOMAIN).
+// Used to watch usage against the free-tier cap — Mailgun's own
+// account-level "custom limit" endpoint needs a higher-privilege API key
+// than the per-domain sending key configured here, so this is tracked
+// via the Stats API instead, compared against MAIL_MONTHLY_LIMIT.
+function get_monthly_email_count(): ?int
+{
+    if (MAILGUN_API_KEY === '') {
+        return null;
+    }
+
+    $ch = curl_init('https://api.mailgun.net/v3/stats/total?event=accepted&resolution=month');
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_USERPWD => 'api:' . MAILGUN_API_KEY,
+        CURLOPT_TIMEOUT => 10,
+    ]);
+
+    $body = curl_exec($ch);
+    $errno = curl_errno($ch);
+    $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($errno !== 0 || $status < 200 || $status >= 300) {
+        error_log("Mailgun stats fetch failed: HTTP $status");
+        return null;
+    }
+
+    $decoded = json_decode($body, true);
+    $stats = $decoded['stats'][0] ?? null;
+    return $stats !== null ? (int) ($stats['accepted']['total'] ?? 0) : 0;
+}
