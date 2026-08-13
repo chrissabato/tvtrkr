@@ -226,28 +226,7 @@ route($routes, 'GET', '#^/shows$#', function () {
     $countStmt->execute([$user['id']]);
     $counts = $countStmt->fetchAll(PDO::FETCH_KEY_PAIR);
 
-    // Who each show is being watched with, if anyone (mirrors GET
-    // /shows/:id/watch-with but for every show at once, so the list view
-    // can show avatars without a request per row).
-    $watchWithStmt = $pdo->prepare('
-        SELECT g.tmdb_id, u.id, u.name, u.picture_url, m2.status
-        FROM watch_group_members m1
-        JOIN watch_groups g ON g.id = m1.group_id
-        JOIN watch_group_members m2 ON m2.group_id = g.id AND m2.user_id != m1.user_id
-        JOIN users u ON u.id = m2.user_id
-        WHERE m1.user_id = ?
-        ORDER BY g.tmdb_id, m2.joined_at ASC
-    ');
-    $watchWithStmt->execute([$user['id']]);
-    $watchWithByShow = [];
-    foreach ($watchWithStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-        $watchWithByShow[$row['tmdb_id']][] = [
-            'id' => (int) $row['id'],
-            'name' => $row['name'],
-            'picture_url' => $row['picture_url'],
-            'status' => $row['status'],
-        ];
-    }
+    $watchWithByShow = watch_with_by_show($pdo, $user['id']);
 
     foreach ($shows as &$show) {
         unset($show['user_id']);
@@ -361,6 +340,8 @@ function compute_show_watch_rows(PDO $pdo, int $userId): array
     $showStmt->execute([$userId]);
     $allShows = $showStmt->fetchAll(PDO::FETCH_ASSOC);
 
+    $watchWithByShow = watch_with_by_show($pdo, $userId);
+
     $result = [];
     foreach ($allShows as $show) {
         $showId = (int) $show['tmdb_id'];
@@ -373,6 +354,7 @@ function compute_show_watch_rows(PDO $pdo, int $userId): array
             'name' => $show['name'],
             'poster_path' => $show['poster_path'],
             'available_count' => $availableCount,
+            'watch_with' => $watchWithByShow[$showId] ?? [],
             'next_episode' => $next ? [
                 'season_number' => (int) $next['season_number'],
                 'episode_number' => (int) $next['episode_number'],
@@ -901,6 +883,36 @@ function ensure_show_exists(int $userId, $tmdbId): void
     if (!$stmt->fetch()) {
         respond_error('Show is not in your library yet', 404);
     }
+}
+
+// Who each of $userId's shows is being watched with, if anyone: a map of
+// tmdb_id => list of other members (with invite status), for every watch
+// group $userId belongs to. Lets a show-list view render avatars without a
+// request per row (mirrors GET /shows/:id/watch-with, but for every show
+// at once).
+function watch_with_by_show(PDO $pdo, int $userId): array
+{
+    $stmt = $pdo->prepare('
+        SELECT g.tmdb_id, u.id, u.name, u.picture_url, m2.status
+        FROM watch_group_members m1
+        JOIN watch_groups g ON g.id = m1.group_id
+        JOIN watch_group_members m2 ON m2.group_id = g.id AND m2.user_id != m1.user_id
+        JOIN users u ON u.id = m2.user_id
+        WHERE m1.user_id = ?
+        ORDER BY g.tmdb_id, m2.joined_at ASC
+    ');
+    $stmt->execute([$userId]);
+
+    $byShow = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $byShow[$row['tmdb_id']][] = [
+            'id' => (int) $row['id'],
+            'name' => $row['name'],
+            'picture_url' => $row['picture_url'],
+            'status' => $row['status'],
+        ];
+    }
+    return $byShow;
 }
 
 // Returns the accepted-member user_ids sharing a watch group with $userId

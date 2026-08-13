@@ -1,5 +1,25 @@
 import { api, posterUrl } from '../api.js';
 
+function avatarHtml(person) {
+  const initial = (person.name || '?').charAt(0).toUpperCase();
+  return person.picture_url ? `<img src="${person.picture_url}" alt="" />` : initial;
+}
+
+function watchWithHtml(members) {
+  if (!members.length) return '';
+  return `
+    <span class="watch-with-trigger-avatars">${members
+      .map(
+        (m) => `
+          <span class="avatar${m.status === 'pending' ? ' pending' : ''}" title="${
+            m.name || 'Unnamed user'
+          }${m.status === 'pending' ? ' (invited)' : ''}">${avatarHtml(m)}</span>
+        `
+      )
+      .join('')}</span>
+  `;
+}
+
 function formatDate(iso) {
   const d = new Date(iso + 'T00:00:00');
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
@@ -38,6 +58,7 @@ function showRow(show) {
         <div class="show-name">${show.name}</div>
         <div class="progress">S${ep.season_number}E${ep.episode_number} · ${ep.name || ''} <span class="wtw-date">${dateLabel}</span></div>
       </div>
+      ${watchWithHtml(show.watch_with || [])}
       <div class="wtw-actions">
         ${
           airingSoon
