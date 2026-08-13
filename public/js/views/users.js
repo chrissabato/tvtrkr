@@ -21,9 +21,10 @@ export async function renderUsers(view, currentUser) {
       .map((u) => {
         const isSelf = u.email === currentUser.email;
         const statusLabel = u.has_signed_in ? (u.name || u.email) : `${u.email} (invited, not signed in yet)`;
+        const initial = (u.name || u.email || '?').charAt(0).toUpperCase();
         return `
           <div class="watchlist-row">
-            ${u.picture_url ? `<img src="${u.picture_url}" alt="" style="border-radius:50%;" />` : ''}
+            <span class="avatar">${u.picture_url ? `<img src="${u.picture_url}" alt="" />` : initial}</span>
             <div class="info">
               <div class="show-name">${statusLabel}${u.is_admin ? ' · admin' : ''}</div>
               <div class="progress">${u.email}</div>
