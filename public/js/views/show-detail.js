@@ -46,18 +46,53 @@ export async function renderShowDetail(view, id) {
         <h2>${show.name}</h2>
         <div class="card-sub">${(show.first_air_date || '').slice(0, 4) || ''} · ${show.status || ''}</div>
         <p class="overview">${show.overview || ''}</p>
-        <button class="btn ${inLibrary ? 'active' : ''}" id="toggle-library">
-          ${inLibrary ? '✓ In My Shows' : '+ Add to My Shows'}
-        </button>
-        <div id="watch-with"></div>
+        <div class="detail-actions">
+          <button class="btn ${inLibrary ? 'active' : ''}" id="toggle-library">
+            ${inLibrary ? '✓ In My Shows' : '+ Add to My Shows'}
+          </button>
+          <button class="btn" id="watch-with-trigger" hidden></button>
+        </div>
       </div>
     </div>
     <h2 class="section-title">Seasons</h2>
     <div id="seasons"></div>
+
+    <div class="modal-overlay" id="watch-with-modal" hidden>
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="watch-with-modal-title">
+        <div class="modal-header">
+          <h3 id="watch-with-modal-title">Watch with</h3>
+          <button class="modal-close" id="watch-with-modal-close" type="button" aria-label="Close">&times;</button>
+        </div>
+        <div class="modal-body" id="watch-with-modal-body"></div>
+      </div>
+    </div>
   `;
 
   const toggleBtn = view.querySelector('#toggle-library');
-  const watchWithEl = view.querySelector('#watch-with');
+  const watchWithTrigger = view.querySelector('#watch-with-trigger');
+  const watchWithModal = view.querySelector('#watch-with-modal');
+  const watchWithModalBody = view.querySelector('#watch-with-modal-body');
+  const watchWithModalClose = view.querySelector('#watch-with-modal-close');
+
+  function handleWatchWithEscKey(e) {
+    if (e.key === 'Escape') closeWatchWithModal();
+  }
+
+  function openWatchWithModal() {
+    watchWithModal.hidden = false;
+    document.addEventListener('keydown', handleWatchWithEscKey);
+  }
+
+  function closeWatchWithModal() {
+    watchWithModal.hidden = true;
+    document.removeEventListener('keydown', handleWatchWithEscKey);
+  }
+
+  watchWithTrigger.addEventListener('click', openWatchWithModal);
+  watchWithModalClose.addEventListener('click', closeWatchWithModal);
+  watchWithModal.addEventListener('click', (e) => {
+    if (e.target === watchWithModal) closeWatchWithModal();
+  });
 
   function syncLibraryButton() {
     toggleBtn.textContent = inLibrary ? '✓ In My Shows' : '+ Add to My Shows';
@@ -69,13 +104,15 @@ export async function renderShowDetail(view, id) {
     return person.picture_url ? `<img src="${person.picture_url}" alt="" />` : initial;
   }
 
-  // Renders who this show is being watched with (if anyone), plus controls
-  // to invite someone or leave the group. Checking off an episode fans out
-  // to every accepted member server-side, so there's no per-user state to
+  // Refreshes who this show is being watched with (if anyone): the trigger
+  // button's label, and — while the modal is open — its contents (member
+  // list, invite picker, leave button). Checking off an episode fans out to
+  // every accepted member server-side, so there's no per-user state to
   // render here beyond who's involved.
   async function renderWatchWith() {
     if (!inLibrary) {
-      watchWithEl.innerHTML = '';
+      watchWithTrigger.hidden = true;
+      closeWatchWithModal();
       return;
     }
 
@@ -84,6 +121,9 @@ export async function renderShowDetail(view, id) {
     const iAmInGroup = members.some((m) => m.id === me.id);
     const excludeIds = new Set(members.map((m) => m.id));
     const invitable = people.filter((p) => p.id !== me.id && !excludeIds.has(p.id));
+
+    watchWithTrigger.hidden = false;
+    watchWithTrigger.textContent = others.length ? `👥 Watching with ${others.length}` : 'Watch with…';
 
     const chips = others
       .map(
@@ -98,32 +138,32 @@ export async function renderShowDetail(view, id) {
 
     const inviteControl = invitable.length
       ? `
-        <select id="watch-with-picker">
-          ${invitable.map((p) => `<option value="${p.id}">${p.name || 'Unnamed user'}</option>`).join('')}
-        </select>
-        <button class="btn" id="watch-with-invite-btn">Watch this with…</button>
+        <div class="watch-with-invite">
+          <select id="watch-with-picker">
+            ${invitable.map((p) => `<option value="${p.id}">${p.name || 'Unnamed user'}</option>`).join('')}
+          </select>
+          <button class="btn" id="watch-with-invite-btn">Invite</button>
+        </div>
       `
       : '';
 
-    watchWithEl.innerHTML = `
-      <div class="watch-with-section">
-        ${chips ? `<div class="watch-with-members">${chips}</div>` : ''}
-        ${inviteControl}
-        ${iAmInGroup ? '<button class="btn btn-text" id="watch-with-leave-btn">Stop watching together</button>' : ''}
-      </div>
+    watchWithModalBody.innerHTML = `
+      ${chips ? `<div class="watch-with-members">${chips}</div>` : '<p class="empty">Not watching this with anyone yet.</p>'}
+      ${inviteControl}
+      ${iAmInGroup ? '<button class="btn btn-text" id="watch-with-leave-btn">Stop watching together</button>' : ''}
     `;
 
-    const inviteBtn = watchWithEl.querySelector('#watch-with-invite-btn');
+    const inviteBtn = watchWithModalBody.querySelector('#watch-with-invite-btn');
     if (inviteBtn) {
       inviteBtn.addEventListener('click', async () => {
         inviteBtn.disabled = true;
-        const userId = Number(watchWithEl.querySelector('#watch-with-picker').value);
+        const userId = Number(watchWithModalBody.querySelector('#watch-with-picker').value);
         await api.inviteWatchWith(showId, userId);
         await renderWatchWith();
       });
     }
 
-    const leaveBtn = watchWithEl.querySelector('#watch-with-leave-btn');
+    const leaveBtn = watchWithModalBody.querySelector('#watch-with-leave-btn');
     if (leaveBtn) {
       leaveBtn.addEventListener('click', async () => {
         leaveBtn.disabled = true;
