@@ -19,6 +19,12 @@ function db(): PDO
     $pdo = new PDO('sqlite:' . DB_PATH);
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     $pdo->exec('PRAGMA foreign_keys = ON');
+    // WAL lets readers proceed alongside a writer instead of locking the
+    // whole file; busy_timeout makes concurrent writers (e.g. two watch-with
+    // members marking episodes at once) queue briefly instead of throwing
+    // SQLITE_BUSY immediately.
+    $pdo->exec('PRAGMA journal_mode = WAL');
+    $pdo->exec('PRAGMA busy_timeout = 5000');
 
     migrate_legacy_single_user_schema($pdo);
 
