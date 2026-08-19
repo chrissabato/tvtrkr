@@ -279,6 +279,19 @@ route($routes, 'DELETE', '#^/shows/(\d+)$#', function ($id) {
     respond(['ok' => true]);
 });
 
+// The server's own clock (UTC in production) can disagree with the user's
+// local calendar day near midnight in either direction, which would mark an
+// episode "aired" a day early or late. Prefer the date the client's browser
+// reports, falling back to the server clock if it's missing or malformed.
+function resolve_today(): string
+{
+    $today = $_GET['today'] ?? '';
+    if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $today)) {
+        return $today;
+    }
+    return date('Y-m-d');
+}
+
 // -- What to Watch: next unwatched (already-aired) episode per show --
 //
 // A show with nothing aired-and-unwatched is only worth surfacing here if
@@ -292,7 +305,7 @@ const WHATTOWATCH_SOON_DAYS = 14;
 // boring shows below) and the /people profile routes (which don't).
 function compute_show_watch_rows(PDO $pdo, int $userId): array
 {
-    $today = date('Y-m-d');
+    $today = resolve_today();
 
     $availableStmt = $pdo->prepare('
         SELECT e.show_id, e.season_number, e.episode_number, e.name AS episode_name, e.air_date
@@ -396,7 +409,7 @@ route($routes, 'GET', '#^/whattowatch$#', function () {
 
     ['all_shows' => $allShows, 'rows' => $rows] = compute_show_watch_rows($pdo, $user['id']);
 
-    $today = date('Y-m-d');
+    $today = resolve_today();
     $soonCutoff = date('Y-m-d', strtotime("$today +" . WHATTOWATCH_SOON_DAYS . ' days'));
 
     // Caught up with nothing airing soon — not worth surfacing here (finished
@@ -723,7 +736,7 @@ route($routes, 'GET', '#^/calendar$#', function () {
     // "before" it, everything with air_date > today sorts "after" it, and
     // since real show/season/episode ids can never reach PHP_INT_MAX this
     // never accidentally swallows or duplicates today's own episodes.
-    $boundary = [date('Y-m-d'), PHP_INT_MAX, PHP_INT_MAX, PHP_INT_MAX];
+    $boundary = [resolve_today(), PHP_INT_MAX, PHP_INT_MAX, PHP_INT_MAX];
 
     respond([
         'recent' => fetch_calendar_page($pdo, $user['id'], 'before', $boundary, CALENDAR_PAGE_SIZE),
@@ -848,7 +861,7 @@ function fetch_calendar_page(PDO $pdo, int $userId, string $direction, array $cu
         ORDER BY e.air_date $order, e.show_id $order, e.season_number $order, e.episode_number $order
         LIMIT :limit
     ");
-    $stmt->bindValue(':today', date('Y-m-d'));
+    $stmt->bindValue(':today', resolve_today());
     $stmt->bindValue(':user_id', $userId, PDO::PARAM_INT);
     $stmt->bindValue(':c_air_date', $cAirDate);
     $stmt->bindValue(':c_show_id', $cShowId, PDO::PARAM_INT);

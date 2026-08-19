@@ -1,4 +1,4 @@
-import { api, posterUrl } from '../api.js';
+import { api, posterUrl, localToday } from '../api.js';
 
 function episodeKey(season, episode) {
   return `${season}-${episode}`;
@@ -6,8 +6,7 @@ function episodeKey(season, episode) {
 
 function hasAired(airDate) {
   if (!airDate) return false;
-  const todayStr = new Date().toISOString().slice(0, 10);
-  return airDate <= todayStr;
+  return airDate <= localToday();
 }
 
 export async function renderShowDetail(view, id) {

@@ -1,5 +1,15 @@
 // Thin fetch wrapper for our own PHP backend (which itself proxies TMDB).
 
+// The browser's local calendar date (YYYY-MM-DD). The server's clock may be
+// in a different timezone, so "has this episode aired yet" needs the
+// viewer's own date, not the server's.
+export function localToday() {
+  const d = new Date();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${month}-${day}`;
+}
+
 async function request(path, options = {}) {
   const res = await fetch(`/api${path}`, {
     headers: { 'Content-Type': 'application/json' },
@@ -38,7 +48,7 @@ export const api = {
   getSeason: (id, seasonNumber) => request(`/tmdb/show/${id}/season/${seasonNumber}`),
 
   // What to Watch
-  getWhatToWatch: () => request('/whattowatch'),
+  getWhatToWatch: () => request(`/whattowatch?today=${localToday()}`),
 
   // People / public profiles
   listPeople: () => request('/people'),
@@ -82,10 +92,10 @@ export const api = {
     request(`/shows/${showId}/watched/season/${season}`, { method: 'DELETE' }),
 
   // Calendar
-  getCalendar: () => request('/calendar'),
+  getCalendar: () => request(`/calendar?today=${localToday()}`),
   getCalendarPage: (dir, cursor, limit = 20) =>
     request(
-      `/calendar/more?dir=${dir}&air_date=${encodeURIComponent(cursor.air_date)}&show_id=${cursor.show_id}&season=${cursor.season_number}&episode=${cursor.episode_number}&limit=${limit}`
+      `/calendar/more?dir=${dir}&air_date=${encodeURIComponent(cursor.air_date)}&show_id=${cursor.show_id}&season=${cursor.season_number}&episode=${cursor.episode_number}&limit=${limit}&today=${localToday()}`
     ),
 };
 
